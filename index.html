@@ -3554,14 +3554,14 @@ function rebuildSearchIndex() {
     });
     // Sinonimi per tipi di sede, così cercare "ucic" matcha anche "unità coronarica"
     const sedeTipoAliases = {
-      terapia_intensiva: 'terapia intensiva rianimazione ucic utic unità coronarica unità terapia intensiva cardiologica tipo tin terapia intensiva post-operatoria terapia intensiva neonatale',
+      terapia_intensiva: 'terapia intensiva rianimazione',
       semi_intensiva: 'semi intensiva subintensiva',
-      diagnostica: 'diagnostica esami strumentali tc tac rm risonanza magnetica rx radiografia mammografia ecografia angiografia endoscopia neurofisiologia eeg emg densitometria piastra endoscopica',
+      diagnostica: 'diagnostica esami strumentali',
       day_hospital: 'day hospital dh',
-      sala_operatoria: 'sala operatoria so emodinamica cardiologia interventistica elettrofisiologia',
+      sala_operatoria: 'sala operatoria',
       reparto: 'reparto degenze degenza',
       studi_medici: 'studi medici studio medico',
-      ambulatori: 'ambulatori ambulatorio amb riabilitazione',
+      ambulatori: 'ambulatori ambulatorio amb',
       laboratorio: 'laboratorio',
       segreteria_direzione: 'segreteria direzione segr portineria'
     };
@@ -3574,9 +3574,8 @@ function rebuildSearchIndex() {
       const kind = (typeof classifyContatto === 'function') ? classifyContatto(c).kind : '';
       const kindAliases = {
         guardia: 'guardia mdg reperibile',
-        reparto: 'reparto degenza degenze infermieri guardiola caposala coordinatore bancone',
-        ambulatorio: 'ambulatorio amb',
-        direzione: 'direttore direzione segreteria'
+        reparto: 'reparto degenza degenze',
+        utile: 'utile'
       };
       const sedeTipo = contactToSedeTipo.get(c.id) || '';
       const sedeTipoStr = sedeTipoAliases[sedeTipo] || sedeTipo;
@@ -15530,7 +15529,22 @@ function renderSearchResults(query, targetId) {
     }
     const hasMatchedGuardia = contatti.some(c => c._isGuardia && c._matched);
     const hasTaggedMatched = contatti.some(c => c._matched && (c.kind === 'utile' || c.kind === 'reparto' || c.kind === 'guardia'));
-    const scoreAdjusted = u.bestScore - (hasMatchedGuardia ? 0.2 : 0) - (wantsGuardia && hasMatchedGuardia ? 0.15 : 0) - (hasTaggedMatched ? 0.25 : 0);
+    // Boost forte se un contatto del gruppo ha un match ESATTO di parola intera nell'etichetta
+    // (es. query "eeg" → "Ambulatorio EEG"). Senza questo, un match diretto e specifico può
+    // finire sotto a UOC che matchano la query solo via alias di tipo-sezione o fuzzy.
+    const wordBoundaryHit = contatti.some(c => {
+      const label = (c.etichetta || '').toLowerCase();
+      return queryTerms.some(t => {
+        if (t.length < 2) return false;
+        const re = new RegExp('(^|[^a-z0-9àèéìòù])' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9àèéìòù])', 'i');
+        return re.test(label);
+      });
+    });
+    const scoreAdjusted = u.bestScore
+      - (hasMatchedGuardia ? 0.2 : 0)
+      - (wantsGuardia && hasMatchedGuardia ? 0.15 : 0)
+      - (hasTaggedMatched ? 0.25 : 0)
+      - (wordBoundaryHit ? 0.4 : 0);
 
     return {
       ...u,
