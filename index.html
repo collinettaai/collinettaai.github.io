@@ -1032,8 +1032,11 @@ body.is-dragging-modulo-box{touch-action:none;overscroll-behavior:none;user-sele
    `overscroll-behavior-y:none` su html previene anche il pull-to-refresh
    del browser (che altrimenti si attiva quando si fa swipe verso il basso). */
 html.search-overlay-open,
-body.search-overlay-open{overflow:hidden!important;overscroll-behavior-y:none;touch-action:none}
-/* L'overlay deve poter ricevere pan verticale per scroll, ma niente pull-to-refresh */
+body.search-overlay-open{overscroll-behavior-y:none}
+/* L'overlay deve poter ricevere pan verticale per scroll, ma niente pull-to-refresh.
+   NB: NON usiamo overflow:hidden/height:100% sul body perché ricalcolerebbe la posizione
+   degli elementi sticky (topbar, sidebar) facendoli "saltare". L'overlay è position:fixed
+   e copre l'intera pagina, quindi il blocco dello scroll del body non è necessario su desktop. */
 body.search-overlay-open #search-overlay{touch-action:pan-y;overscroll-behavior-y:contain}
 #search-overlay > .content{padding:40px 48px 80px;width:100%;min-width:0}
 @media (max-width:900px){
