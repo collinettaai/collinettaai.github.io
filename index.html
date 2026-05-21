@@ -15150,23 +15150,9 @@ function renderTagPage(tagName) {
 function openSearchOverlay(query) {
   const overlay = document.getElementById('search-overlay');
   if (!overlay) return;
-  // Salvo posizione scroll + rotta per ripristinare alla chiusura (se non si naviga).
-  const wasHidden = overlay.classList.contains('hidden');
-  if (wasHidden) {
-    overlay._savedScrollY = window.scrollY || window.pageYOffset || 0;
-    overlay._savedRoute = state.currentView;
-  }
   overlay.classList.remove('hidden');
   document.documentElement.classList.add('search-overlay-open');
   document.body.classList.add('search-overlay-open');
-  // Alcuni browser, applicando overflow:hidden al body/html scrollato, resettano
-  // visivamente lo scroll a 0 (la pagina "salta su"). Riporto subito la posizione salvata
-  // per compensare. Vale sia PC che mobile.
-  if (wasHidden && overlay._savedScrollY > 0) {
-    const y = overlay._savedScrollY;
-    window.scrollTo(0, y);
-    requestAnimationFrame(() => window.scrollTo(0, y));
-  }
   renderSearchResults(query, 'search-overlay-content');
   // Tap/swipe fuori dall'input attivo → chiudi tastiera mobile (blur input).
   if (!document._blurInputOnTouchBound) {
@@ -15198,19 +15184,8 @@ function closeSearchOverlay() {
   overlay.classList.add('hidden');
   document.documentElement.classList.remove('search-overlay-open');
   document.body.classList.remove('search-overlay-open');
-  // Ripristina la posizione scroll precedente SOLO se la rotta non è cambiata (chiusura/
-  // cancellazione senza navigare). Se l'utente ha cliccato un risultato, navigate() ha già
-  // scrollato la pagina target a 0 e non dobbiamo riportarlo alla posizione vecchia.
-  const sameRoute = overlay._savedRoute === state.currentView;
-  const y = overlay._savedScrollY;
   overlay._savedScrollY = null;
   overlay._savedRoute = null;
-  if (sameRoute && typeof y === 'number' && y > 0) {
-    requestAnimationFrame(() => {
-      try { window.scrollTo({ top: y, behavior: 'instant' }); }
-      catch { window.scrollTo(0, y); }
-    });
-  }
 }
 
 function renderSearchResults(query, targetId) {
@@ -16368,42 +16343,13 @@ function initGlobalSearch() {
       searchInput.focus();
     });
   }
-  // BUG FIX (scroll-jump al focus): l'input è dentro la topbar position:sticky. Quando
-  // riceve il focus mentre la pagina è scrollata, il browser fa uno smooth-scroll automatico
-  // per "allineare" l'elemento focused, portando la pagina in cima. Succede sia su PC che
-  // mobile, PRIMA ancora che si apra l'overlay. Per impedirlo: al focus salvo la posizione
-  // e la "pinno" (ripristino su ogni evento scroll) per una breve finestra, battendo
-  // l'animazione del browser. preventScroll nel focus programmatico non basta perché il
-  // focus da click dell'utente non lo possiamo intercettare con quell'opzione.
-  let _pinScrollY = null;
-  let _pinUntil = 0;
-  const onPinScroll = () => {
-    if (_pinScrollY === null) return;
-    if (performance.now() > _pinUntil) {
-      window.removeEventListener('scroll', onPinScroll);
-      _pinScrollY = null;
-      return;
-    }
-    if (Math.abs(window.scrollY - _pinScrollY) > 1) {
-      window.scrollTo(0, _pinScrollY);
-    }
-  };
+  // Se l'utente torna sull'input con testo già presente, riapri l'overlay con quei risultati.
+  // MA solo se l'overlay è effettivamente chiuso.
   searchInput.addEventListener('focus', () => {
-    // Pin della posizione corrente per ~500ms per annullare il focus-scroll del browser
-    _pinScrollY = window.scrollY || window.pageYOffset || 0;
-    _pinUntil = performance.now() + 250;
-    window.removeEventListener('scroll', onPinScroll);
-    window.addEventListener('scroll', onPinScroll, { passive: true });
-
     const q = searchInput.value;
     const overlay = document.getElementById('search-overlay');
     const overlayOpen = overlay && !overlay.classList.contains('hidden');
     if (q.length >= 2 && !overlayOpen) openSearchOverlay(q);
-  });
-  // Quando l'input perde il focus, smetti di pinnare
-  searchInput.addEventListener('blur', () => {
-    _pinScrollY = null;
-    window.removeEventListener('scroll', onPinScroll);
   });
 
   // Keyboard shortcut: Cmd/Ctrl + K focuses search; ESC chiude modale o overlay
