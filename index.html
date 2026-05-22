@@ -4142,6 +4142,11 @@ const urlRouter = (function() {
       case 'tag':             return ['tag', p.tag];
       case 'lettere':                  return ['lettere'];
       case 'lettere-nuovo':            return ['lettere', 'nuovo'];
+      case 'lettere-carica':           return ['lettere', 'carica'];
+      case 'lettere-anonimizza':       return ['lettere', 'anonimizza'];
+      case 'lettere-genera':           return ['lettere', 'genera'];
+      case 'lettere-verifica':         return ['lettere', 'verifica'];
+      case 'lettere-esporta':          return ['lettere', 'esporta'];
       case 'lettere-libreria':         return ['lettere', 'libreria'];
       case 'lettere-caso':             return ['lettere', 'caso', p.id];
       case 'lettere-personalizzazioni':return ['lettere', 'personalizzazioni'];
@@ -4199,6 +4204,11 @@ const urlRouter = (function() {
       case 'tag': return { route: 'tag', params: { tag: second }, blockHash };
       case 'lettere':
         if (second === 'nuovo')             return { route: 'lettere-nuovo', params: {}, blockHash };
+        if (second === 'carica')            return { route: 'lettere-carica', params: {}, blockHash };
+        if (second === 'anonimizza')        return { route: 'lettere-anonimizza', params: {}, blockHash };
+        if (second === 'genera')            return { route: 'lettere-genera', params: {}, blockHash };
+        if (second === 'verifica')          return { route: 'lettere-verifica', params: {}, blockHash };
+        if (second === 'esporta')           return { route: 'lettere-esporta', params: {}, blockHash };
         if (second === 'libreria')          return { route: 'lettere-libreria', params: {}, blockHash };
         if (second === 'caso')              return { route: 'lettere-caso', params: { id: third }, blockHash };
         if (second === 'personalizzazioni') return { route: 'lettere-personalizzazioni', params: {}, blockHash };
@@ -4352,6 +4362,11 @@ function navigate(route, params = {}) {
     case 'tag': renderTagPage(params.tag); break;
     case 'lettere':                  _openLetterAI('renderHome'); break;
     case 'lettere-nuovo':            _openLetterAI('renderWizard'); break;
+    case 'lettere-carica':           _openLetterAI('renderCarica'); break;
+    case 'lettere-anonimizza':       _openLetterAI('renderAnonimizza'); break;
+    case 'lettere-genera':           _openLetterAI('renderGenera'); break;
+    case 'lettere-verifica':         _openLetterAI('renderVerifica'); break;
+    case 'lettere-esporta':          _openLetterAI('renderEsporta'); break;
     case 'lettere-libreria':         _openLetterAI('renderLibreria'); break;
     case 'lettere-caso':             _openLetterAI('renderCaso', params.id); break;
     case 'lettere-personalizzazioni':_openLetterAI('renderPersonalizzazioni'); break;
@@ -13259,7 +13274,7 @@ function getRootNavNodes() {
     { id: 'moduli', label: 'Moduli', count: state.index.moduli.length, kind: 'top', slug: 'moduli', navTarget: { route: 'moduli', params: {} }, children: () => buildModuliChildren() },
     { id: 'calendario', label: 'Calendario', count: ((state.index.calendar && state.index.calendar.eventi) || []).length, kind: 'top', slug: 'calendario', navTarget: { route: 'calendario', params: {} } },
     { id: 'manuale', label: 'Manuale', count: (state.index.capitoli || []).length, kind: 'top', slug: 'manuale', navTarget: { route: 'manuale', params: {} }, children: () => buildManualeChildren() },
-    { id: 'lettere', label: 'LetteraAI', count: ((state.index.lettere && state.index.lettere.casi) || []).length, kind: 'top', slug: 'lettere', navTarget: { route: 'lettere', params: {} } },
+    { id: 'lettere', label: 'LetteraAI', count: ((state.index.lettere && state.index.lettere.casi) || []).length, kind: 'top', slug: 'lettere', navTarget: { route: 'lettere', params: {} }, children: () => buildLettereChildren() },
   ];
 }
 
@@ -13555,6 +13570,34 @@ function buildModuliChildren() {
     children: null
   }));
 }
+
+// LetteraAI: voci di navigazione (flusso lettera + strumenti), come i panel dell'originale.
+// Le voci admin (Reparti, Prompt & template) appaiono solo se l'utente è admin.
+function buildLettereChildren() {
+  const isAdmin = !!(state.session && state.session.isAdmin);
+  const mk = (id, label, route, kind) => ({
+    id: 'lettere:' + id, label, count: null, action: 'navigate',
+    navTarget: { route, params: {} }, kind: kind || 'lettere-sezione', slug: id, children: null
+  });
+  const nodes = [
+    // Flusso di generazione (pagine separate, stato condiviso in L.wiz)
+    mk('carica', 'Carica cartella', 'lettere-carica'),
+    mk('anonimizza', 'Anonimizza dati', 'lettere-anonimizza'),
+    mk('genera', 'Genera lettera', 'lettere-genera'),
+    mk('verifica', 'Verifica', 'lettere-verifica'),
+    mk('esporta', 'Esporta', 'lettere-esporta'),
+    // Strumenti
+    mk('libreria', 'Libreria casi', 'lettere-libreria'),
+    mk('personalizzazioni', 'Mie personalizzazioni', 'lettere-personalizzazioni'),
+    mk('segnalazioni', 'Segnala errori', 'lettere-segnalazioni'),
+  ];
+  if (isAdmin) {
+    nodes.push(mk('reparti', 'Reparti', 'lettere-reparti'));
+    nodes.push(mk('config', 'Prompt & template', 'lettere-config'));
+  }
+  return nodes;
+}
+
 
 function buildManualeChildren() {
   return (state.index.capitoli || []).map(c => {
