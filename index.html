@@ -1783,6 +1783,54 @@ async function _ensureLib(name) {
   return promise;
 }
 
+// === LetterAI: lazy-loader del modulo lettere ===========================================
+// Il generatore di lettere di dimissione (LetterAI) vive in un file separato
+// `letteraai-module.js` nella stessa repo pubblica di questo index.html, servito da GitHub
+// Pages. Viene caricato on-demand alla prima apertura della sezione "LetterAI", così il
+// bundle iniziale resta snello (il modulo è ~190 KB) e si scarica solo a chi lo usa.
+// Il modulo è una IIFE autosufficiente che si registra su window.Lettere e usa le API
+// condivise di CollinettaAI via window.gh / window.state / window.showModal / ecc.
+let _letterAiLoading = null;
+function ensureLetterAI() {
+  if (window.Lettere) return Promise.resolve(window.Lettere);
+  if (_letterAiLoading) return _letterAiLoading;
+  _letterAiLoading = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    // Path relativo: il file sta accanto a index.html nella repo pubblica (GitHub Pages).
+    script.src = 'letteraai-module.js';
+    script.onload = () => {
+      if (window.Lettere) resolve(window.Lettere);
+      else reject(new Error('letteraai-module.js caricato ma window.Lettere non definito'));
+    };
+    script.onerror = () => reject(new Error('Caricamento LetterAI fallito (letteraai-module.js non trovato)'));
+    document.head.appendChild(script);
+  });
+  return _letterAiLoading;
+}
+
+// Carica il modulo (se serve) e poi esegue la funzione di render richiesta.
+// Mostra un placeholder di caricamento e gestisce gli errori con un messaggio in pagina.
+async function _openLetterAI(renderFn, ...args) {
+  const mc = document.getElementById('main-content');
+  if (mc) mc.innerHTML = '<div style="padding:48px;text-align:center;color:var(--ink-muted);">Caricamento LetterAI…</div>';
+  try {
+    const L = await ensureLetterAI();
+    if (typeof L[renderFn] === 'function') {
+      // Pre-carica la libreria casi/bozze la prima volta (così i conteggi sono pronti)
+      if (!L.isReady() && typeof L.loadLibrary === 'function') {
+        try { await L.loadLibrary(); } catch (e) { console.warn('[LetterAI] loadLibrary', e); }
+      }
+      L[renderFn](...args);
+    } else {
+      throw new Error('Funzione LetterAI sconosciuta: ' + renderFn);
+    }
+  } catch (e) {
+    console.error('[LetterAI]', e);
+    if (mc) mc.innerHTML = `<div style="padding:48px;text-align:center;color:var(--danger);">Impossibile caricare LetterAI.<br><span style="font-size:13px;color:var(--ink-muted);">${escapeHtml(e.message)}</span></div>`;
+    toast('Errore caricamento LetterAI', 'error');
+  }
+}
+
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -3379,6 +3427,14 @@ async function buildIndex() {
   }
 
   state.index = index;
+  // LetterAI: pre-carica la libreria casi/bozze in background, così il conteggio in sidebar
+  // è pronto. Non-bloccante e best-effort: se il modulo non è ancora caricato o le cartelle
+  // non esistono, il modulo carica comunque on-demand all'apertura della sezione.
+  if (typeof ensureLetterAI === 'function') {
+    ensureLetterAI()
+      .then(L => L && typeof L.loadLibrary === 'function' ? L.loadLibrary() : null)
+      .catch(e => console.warn('[LetterAI] preload libreria', e));
+  }
   // Restore extended-numeri toggles from session (load in background)
   try {
     const saved = JSON.parse(sessionStorage.getItem('numeri_show_ext') || '{}');
@@ -4079,6 +4135,13 @@ const urlRouter = (function() {
       case 'attivita':        return ['attivita'];
       case 'search':          return p.query ? ['search', encodeURIComponent(p.query)] : ['search'];
       case 'tag':             return ['tag', p.tag];
+      case 'lettere':                  return ['lettere'];
+      case 'lettere-nuovo':            return ['lettere', 'nuovo'];
+      case 'lettere-libreria':         return ['lettere', 'libreria'];
+      case 'lettere-bozze':            return ['lettere', 'bozze'];
+      case 'lettere-caso':             return ['lettere', 'caso', p.id];
+      case 'lettere-personalizzazioni':return ['lettere', 'personalizzazioni'];
+      case 'lettere-config':           return ['lettere', 'config'];
       default:                return ['home'];
     }
   }
@@ -4128,6 +4191,14 @@ const urlRouter = (function() {
       case 'attivita': return { route: 'attivita', params: {}, blockHash };
       case 'search': return { route: 'search', params: { query: second ? decodeURIComponent(second) : '' }, blockHash };
       case 'tag': return { route: 'tag', params: { tag: second }, blockHash };
+      case 'lettere':
+        if (second === 'nuovo')             return { route: 'lettere-nuovo', params: {}, blockHash };
+        if (second === 'libreria')          return { route: 'lettere-libreria', params: {}, blockHash };
+        if (second === 'bozze')             return { route: 'lettere-bozze', params: {}, blockHash };
+        if (second === 'caso')              return { route: 'lettere-caso', params: { id: third }, blockHash };
+        if (second === 'personalizzazioni') return { route: 'lettere-personalizzazioni', params: {}, blockHash };
+        if (second === 'config')            return { route: 'lettere-config', params: {}, blockHash };
+        return { route: 'lettere', params: {}, blockHash };
       default: return { route: 'home', params: {}, blockHash };
     }
   }
@@ -4272,6 +4343,13 @@ function navigate(route, params = {}) {
     case 'attivita': renderAttivita(); break;
     case 'search': renderSearchResults(params.query); break;
     case 'tag': renderTagPage(params.tag); break;
+    case 'lettere':                  _openLetterAI('renderHome'); break;
+    case 'lettere-nuovo':            _openLetterAI('renderWizard'); break;
+    case 'lettere-libreria':         _openLetterAI('renderLibreria'); break;
+    case 'lettere-bozze':            _openLetterAI('renderBozze'); break;
+    case 'lettere-caso':             _openLetterAI('renderCaso', params.id); break;
+    case 'lettere-personalizzazioni':_openLetterAI('renderPersonalizzazioni'); break;
+    case 'lettere-config':           _openLetterAI('renderConfig'); break;
     default: renderHome();
   }
   window.scrollTo({ top: 0, behavior: 'instant' });
@@ -7293,8 +7371,13 @@ function renderNumeri(filter, targetContainer) {
       'rianimazione': ['rianimazione', 'terapia intensiva'],
       'intramoenia': ['intramoenia', 'libera professione'],
     };
-    // Divido la query in termini (parole). Ogni termine deve matchare almeno un campo (contatto o gruppo).
-    const tokens = rubricaQuery.split(/\s+/).filter(Boolean);
+    // Divido la query in termini. Token corti che sono articoli/preposizioni vengono rimossi
+    // se ci sono altri token più significativi (>=3 chars), per evitare che "lo menzo"
+    // matchi qualunque UOC che contiene "lo" (es. Neurologia, Malattie infettive, ecc.)
+    const STOPWORDS_2 = new Set(['lo','la','il','le','gli','un','di','da','in','su','al','del','dei','gl','li','ne','ci','si','se','ma','mi']);
+    const rawTokens = rubricaQuery.split(/\s+/).filter(Boolean);
+    const significantTokens = rawTokens.filter(t => t.length >= 3 && !STOPWORDS_2.has(t));
+    const tokens = significantTokens.length > 0 ? significantTokens : rawTokens;
     
     const tokenMatchesText = (token, text) => {
       if (text.includes(token)) return true;
@@ -13168,6 +13251,7 @@ function getRootNavNodes() {
     { id: 'moduli', label: 'Moduli', count: state.index.moduli.length, kind: 'top', slug: 'moduli', navTarget: { route: 'moduli', params: {} }, children: () => buildModuliChildren() },
     { id: 'calendario', label: 'Calendario', count: ((state.index.calendar && state.index.calendar.eventi) || []).length, kind: 'top', slug: 'calendario', navTarget: { route: 'calendario', params: {} } },
     { id: 'manuale', label: 'Manuale', count: (state.index.capitoli || []).length, kind: 'top', slug: 'manuale', navTarget: { route: 'manuale', params: {} }, children: () => buildManualeChildren() },
+    { id: 'lettere', label: 'LetterAI', count: ((state.index.lettere && state.index.lettere.casi) || []).length, kind: 'top', slug: 'lettere', navTarget: { route: 'lettere', params: {} } },
   ];
 }
 
@@ -15225,6 +15309,12 @@ function renderSearchResults(query, targetId) {
   const terms = effectiveQuery.trim().split(/\s+/).filter(t => t.length >= 1);
   // Numeric-only query: ricerca esatta sui numeri di contatto (no fuzzy, no partial)
   const isNumericQuery = /^\d+$/.test(effectiveQuery.trim());
+  // Stopword brevi: articoli/preposizioni di 2 caratteri che nel contesto della rubrica
+  // sono rumore puro. Rimosse SOLO se ci sono altri token significativi (>=3 chars);
+  // se la query è interamente composta da token corti, li manteniamo tutti.
+  const STOPWORDS_2 = new Set(['lo','la','il','le','gli','un','di','da','in','su','al','del','dei','gl','li','ne','ci','si','se','ma','mi']);
+  const significantTerms = terms.filter(t => t.length >= 3 && !STOPWORDS_2.has(t.toLowerCase()));
+  const filteredTerms = significantTerms.length > 0 ? significantTerms : terms;
   let rawResults;
   if (isNumericQuery) {
     // Match esatto: il contatto deve contenere esattamente quel numero come token intero
@@ -15251,29 +15341,29 @@ function renderSearchResults(query, targetId) {
         }
       });
     });
-  } else if (terms.length > 1) {
-    const extendedQuery = terms
+  } else if (filteredTerms.length > 1) {
+    const extendedQuery = filteredTerms
       .filter(t => t.length >= 1)
       .map(t => t.length <= 2 ? `^${t}` : `'${t}`)
       .join(' ');
     rawResults = state.fuse.search(extendedQuery);
     if (rawResults.length < 3) {
-      const allInclude = terms.filter(t => t.length >= 2).map(t => `'${t}`).join(' ');
+      const allInclude = filteredTerms.filter(t => t.length >= 2).map(t => `'${t}`).join(' ');
       if (allInclude) {
         const fallback = state.fuse.search(allInclude);
         if (fallback.length > rawResults.length) rawResults = fallback;
       }
     }
-    if (rawResults.length < 3) rawResults = state.fuse.search(effectiveQuery);
+    if (rawResults.length < 3) rawResults = state.fuse.search(filteredTerms.join(' '));
   } else {
-    rawResults = state.fuse.search(effectiveQuery);
+    rawResults = state.fuse.search(filteredTerms.length > 0 ? filteredTerms.join(' ') : effectiveQuery);
   }
 
   const nonNumeri = onlyNumeri ? [] : rawResults.filter(r => r.item.type !== 'numero').slice(0, 20);
   const numeriRaw = rawResults.filter(r => r.item.type === 'numero');
 
   const lowerQuery = effectiveQuery.toLowerCase();
-  const queryTerms = terms.map(t => t.toLowerCase());
+  const queryTerms = filteredTerms.map(t => t.toLowerCase());
   const wantsGuardia = /\b(guardia|mdg|reperibile)\b/i.test(effectiveQuery);
 
   // Sinonimi multi-token (allineati alla ricerca rubrica)
