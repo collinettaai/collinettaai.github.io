@@ -627,6 +627,14 @@ function getActiveFpObjects(){
   return { wardFpObj: null };
 }
 function getRefInjectMode(){ return _refInjectMode; }
+// Seleziona automaticamente il caso di riferimento più simile (primo del RAG)
+function _autoSelectRefCase(){
+  const w = L.wiz;
+  if(!w) return;
+  if((L._refMode||'auto')!=='auto') return;
+  _refCaseId = (w.ragExamples && w.ragExamples[0]) ? w.ragExamples[0].id : null;
+  if(_refInjectMode==='none') _refInjectMode='fingerprint';
+}
 function getRefCase(){
   if(!_refCaseId) return null;
   const c = L.casi.find(x => x.id === _refCaseId);
@@ -3593,14 +3601,32 @@ function wizStep1(){
 }
 function wizStep2(){
   const w=L.wiz;
-  const subs=(w.substitutions||[]).slice(0,80).map(s=>`<div class="lt-sub"><code>${escapeHtml((s.orig||'').slice(0,40))}</code> → <span>${escapeHtml(s.repl||'')}</span><span class="lt-sub-type">${escapeHtml(s.type||'')}</span></div>`).join('')||'<div class="lt-sub-empty">Nessuna sostituzione.</div>';
-  return `<div class="lt-two-col">
-    <div class="field"><label>Testo anonimizzato (modificabile)</label>
-      <textarea id="lt-anon" rows="16" class="mono-input" oninput="window.Lettere._set('anonText', this.value)"></textarea></div>
-    <div class="lt-side"><div class="lt-side-title">Sostituzioni (${(w.substitutions||[]).length})</div><div class="lt-subs">${subs}</div></div>
-   </div><div id="lt-pii-warn"></div>
-   <div class="lt-wiz-actions"><button class="btn ghost" onclick="navigate('lettere-carica')">← Indietro</button>
-     <button class="btn" onclick="navigate('lettere-genera')">Genera →</button></div>`;
+  const subsList=(w.substitutions||[]).slice(0,200).map(s=>`<div class="lt-sub"><code>${escapeHtml((s.orig||'').slice(0,50))}</code> → <span>${escapeHtml(s.repl||'')}</span>${s.type?`<span class="lt-sub-type">${escapeHtml(s.type)}</span>`:''}</div>`).join('')||'<div class="lt-sub-empty">Nessuna sostituzione.</div>';
+  const nSub=(w.substitutions||[]).length;
+  const open = L._anonSubsOpen ? ' open' : '';
+  return `
+    <div class="lt-collapsible${open}" id="lt-anon-subs">
+      <button class="lt-collapsible-toggle" onclick="window.Lettere._toggleAnonSubs()">
+        <span class="lt-ct-icon">▶</span>
+        <span class="lt-ct-label">🛡 Anonimizzazioni applicate</span>
+        <span class="lt-ct-count">${nSub}</span>
+      </button>
+      <div class="lt-collapsible-body"><div class="lt-subs">${subsList}</div></div>
+    </div>
+    <div class="lt-diff-grid">
+      <div class="lt-diff-col">
+        <div class="lt-dlabel">Testo cartella clinica completa da anonimizzare</div>
+        <div class="lt-diff-scroll"><div class="lt-dtext" id="lt-orig">${escapeHtml(w.rawText||'—')}</div></div>
+      </div>
+      <div class="lt-diff-col">
+        <div class="lt-dlabel">Testo anonimizzato <span class="lt-edit-hint">✏ modificabile</span></div>
+        <div class="lt-diff-scroll"><textarea id="lt-anon" class="lt-dtext" oninput="window.Lettere._set('anonText', this.value)"></textarea></div>
+      </div>
+    </div>
+    <div id="lt-pii-warn"></div>
+    <div class="lt-note" style="border-left-color:var(--danger);color:var(--danger)">⚠ Verifica il testo a destra. Correggi manualmente qualsiasi dato rimasto prima di procedere.</div>
+    <div class="lt-wiz-actions"><button class="btn ghost" onclick="navigate('lettere-carica')">← Indietro</button>
+      <button class="btn" onclick="navigate('lettere-genera')">Avanti → Genera</button></div>`;
 }
 function wizStep3(){
   const w=L.wiz, p=w.prefs;
@@ -3625,20 +3651,93 @@ function wizStep3(){
     </div>
     <div class="lt-side-title">Esempi simili (fingerprint usato come riferimento)</div><div class="lt-rags">${rag}</div>`;
 }
-// wizStep3Combined: pagina "Genera" = opzioni (wizStep3) + prompt da copiare + lettera generata.
+// wizStep3Combined: pagina "Genera" con disposizione a card identica all'originale (panel2).
 function wizStep3Combined(){
-  const w=L.wiz;
-  return wizStep3() + `
-    <div class="lt-side-title" style="margin-top:20px">Prompt da copiare nell'AI esterna</div>
-    <div class="field"><textarea id="lt-prompt" rows="10" class="mono-input" readonly>${escapeHtml(w.builtPrompt||'')}</textarea>
-      <div class="lt-row" style="margin-top:8px"><button class="btn sm" onclick="window.Lettere._copyPrompt()">Copia prompt</button>
-        <button class="btn ghost sm" onclick="window.Lettere._rebuildPrompt()">Ricostruisci prompt</button>
-        <span class="lt-status">Incolla in Claude/ChatGPT, poi riporta sotto la lettera.</span></div></div>
-    <div class="field"><label>Lettera generata (incolla la risposta dell'AI)</label>
-      <textarea id="lt-out" rows="12" placeholder="Incolla qui la lettera prodotta..." oninput="window.Lettere._set('outputLetter', this.value)">${escapeHtml(w.outputLetter||'')}</textarea>
-      <div class="lt-row" style="margin-top:6px"><button class="btn ghost sm" onclick="window.Lettere._pasteInto('lt-out')">📋 Incolla dagli appunti</button>
-        <button class="btn ghost sm" onclick="window.Lettere._copyLetter()">Copia testo lettera</button></div></div>
-    ${flowNav('lettere-anonimizza','lettere-verifica','Verifica →')}`;
+  const w=L.wiz, p=w.prefs;
+  // ── Card 1: Modello di lettera (tile selezionabili) ──
+  const tile=(id,icon,label)=>`<label class="lt-tile${w.tipo===id?' on':''}" onclick="window.Lettere._setTipo('${id}')">
+    <span class="lt-tile-l">${icon} ${label}</span></label>`;
+  const transferRow = w.tipo==='trasferimento' ? `
+    <div class="field" style="margin-top:10px"><label>Struttura / reparto di destinazione</label>
+      <input type="text" value="${escapeHtml(w.transferWard||'')}" placeholder="es. Riabilitazione Neurologica, Ospedale di Vicenza" oninput="window.Lettere._set('transferWard', this.value)"></div>` : '';
+  const cardModello=`<div class="lt-card-static">
+    <div class="lt-side-title">Modello di lettera</div>
+    <div class="lt-tiles">${tile('dimissione','🏠','Dimissione')}${tile('trasferimento','🏥','Trasferimento')}${tile('completamento','📋','Completamento')}</div>
+    ${transferRow}</div>`;
+
+  // ── Card 2: Caso di riferimento (tab auto/manuale/nessuno + inject) ──
+  const refMode = L._refMode || 'auto';
+  const refTab=(m,label,title)=>`<button class="lt-tab${refMode===m?' on':''}" title="${title}" onclick="window.Lettere._setRefMode('${m}')">${label}</button>`;
+  // Dropdown manuale
+  let manualRow='';
+  if(refMode==='manual'){
+    const wardNames=[...new Set(L.casi.map(c=>c.ward||c.folder).filter(Boolean))];
+    const wardFilterOpts=`<option value="__all__">Tutti i reparti</option>`+wardNames.map(n=>`<option value="${escapeHtml(n)}"${L._refWardFilter===n?' selected':''}>${escapeHtml(n)}</option>`).join('');
+    const filtered=L.casi.filter(c=>!L._refWardFilter||L._refWardFilter==='__all__'||(c.ward||c.folder)===L._refWardFilter);
+    const caseOpts=`<option value="">— Seleziona un caso —</option>`+filtered.map(c=>`<option value="${escapeHtml(c.id)}"${_refCaseId===c.id?' selected':''}>${escapeHtml(c.diagnosi||c.name||c.id)} — ${escapeHtml(c.ward||c.folder||'')}</option>`).join('');
+    manualRow=`<div style="margin-bottom:10px">
+      <div class="lt-row" style="align-items:center;gap:8px;margin-bottom:8px"><label style="margin:0;white-space:nowrap;font-size:11px">🏥 Reparto</label>
+        <select onchange="window.Lettere._setRefWardFilter(this.value)" style="flex:1">${wardFilterOpts}</select></div>
+      <select onchange="window.Lettere._setRefCase(this.value)" style="width:100%">${caseOpts}</select></div>`;
+  }
+  // Auto info
+  let autoInfo='';
+  if(refMode==='auto'){
+    const auto=(w.ragExamples&&w.ragExamples[0]);
+    autoInfo=`<div class="lt-status" style="margin-bottom:10px">${auto?`Caso selezionato automaticamente: <strong>${escapeHtml(auto.diagnosi||auto.name||auto.id)}</strong> (${escapeHtml(auto.ward||auto.folder||'')})`:'Nessun caso simile trovato in libreria.'}</div>`;
+  }
+  // Inject mode (nascosto se Nessuno)
+  const injMode=_refInjectMode==='none'?'fingerprint':_refInjectMode;
+  const injRow = refMode!=='none' ? `
+    <div style="margin-top:8px;padding-top:10px;border-top:1px solid var(--rule-soft)">
+      <div class="lt-side-title" style="margin-bottom:8px">Cosa iniettare nel prompt</div>
+      <div class="lt-tabs">
+        <button class="lt-tab${injMode==='fingerprint'?' on':''}" title="Solo il decorso (ragionamento + lettera-modello sintetica) — pochi token" onclick="window.Lettere._setRefInject('fingerprint')">Solo decorso</button>
+        <button class="lt-tab${injMode==='full'?' on':''}" title="Cartella e lettera complete del caso — più token, più contestuale" onclick="window.Lettere._setRefInject('full')">Cartella + Lettera</button>
+      </div></div>` : '';
+  const cardRef=`<div class="lt-card-static">
+    <div class="lt-side-title">Caso di riferimento</div>
+    <div class="lt-tabs" style="margin-bottom:10px">${refTab('auto','Automatico','Caso più simile dalla libreria')}${refTab('manual','Manuale','Scegli un caso')}${refTab('none','Nessuno','Solo system prompt e template')}</div>
+    ${autoInfo}${manualRow}${injRow}</div>`;
+
+  // ── Card 3: Preferenze lettera (collassabile) ──
+  const seg=(key,opts)=>opts.map(o=>`<button class="lt-tab${p[key]===o.v?' on':''}" onclick="window.Lettere._setPref('${key}','${o.v}')">${o.l}</button>`).join('');
+  const prefOpen=L._prefsOpen?' open':'';
+  const cardPrefs=`<div class="lt-collapsible${prefOpen}" id="lt-prefs-coll">
+    <button class="lt-collapsible-toggle" onclick="window.Lettere._togglePrefs()">
+      <span class="lt-ct-icon">▶</span><span class="lt-ct-label">Preferenze lettera</span></button>
+    <div class="lt-collapsible-body">
+      <div class="lt-prefblock"><label>Esami di laboratorio</label><div class="lt-tabs">${seg('lab',[{v:'all',l:'Tutti i valori'},{v:'altered',l:'Solo patologici'}])}</div></div>
+      <div class="lt-prefblock"><label>Accertamenti strumentali</label><div class="lt-tabs">${seg('acc',[{v:'brief',l:'Sintetici'},{v:'extended',l:'Estesi'}])}</div></div>
+      <div class="lt-prefblock"><label>Decorso clinico</label><div class="lt-tabs">${seg('dec',[{v:'short',l:'Conciso'},{v:'standard',l:'Standard'},{v:'long',l:'Dettagliato'}])}</div></div>
+      <div class="lt-prefblock"><label>Anamnesi</label><div class="lt-tabs">${seg('an',[{v:'essential',l:'Essenziale'},{v:'complete',l:'Completa'}])}</div></div>
+      <div class="lt-prefblock"><label>Raccomandazioni</label><div class="lt-tabs">${seg('rac',[{v:'main',l:'Principali'},{v:'all',l:'Tutte'}])}</div></div>
+      <div class="lt-prefblock"><label>Terapia alla dimissione</label><div class="lt-tabs">${seg('ter',[{v:'last',l:'Ultima terapia'},{v:'lastPlusHome',l:'Ultima terapia + domiciliare'}])}</div></div>
+      <div class="lt-prefblock"><label>Altre preferenze</label><textarea rows="3" placeholder="Aggiungi preferenze..." oninput="window.Lettere._setPref('custom', this.value)">${escapeHtml(p.custom||'')}</textarea></div>
+      <div class="lt-row" style="margin-top:6px"><button class="btn ghost sm" onclick="window.Lettere._resetPrefs()" title="Ripristina le preferenze salvate">↺ Ripristina salvate</button></div>
+    </div></div>`;
+
+  // ── Diagnosi (campo necessario al RAG, non c'era come card a sé nell'originale ma serve) ──
+  const cardDiag=`<div class="field"><label>Diagnosi principale</label>
+    <input type="text" value="${escapeHtml(w.diagnosi||'')}" oninput="window.Lettere._setDiag(this.value)" placeholder="es. ictus ischemico territorio MCA dx"></div>`;
+
+  // ── Card 4: Prompt completo ──
+  const cardPrompt=`<div class="lt-card-static">
+    <div class="lt-side-title">Prompt completo</div>
+    <textarea id="lt-prompt" rows="12" class="mono-input" readonly>${escapeHtml(w.builtPrompt||'')}</textarea>
+    <div class="lt-row" style="margin-top:8px">
+      <button class="btn sm" onclick="window.Lettere._copyPrompt()">⎘ Copia prompt per AI esterna</button>
+      <button class="btn ghost sm" onclick="window.Lettere._rebuildPrompt()">↻ Ricostruisci</button></div></div>`;
+
+  // ── Card lettera generata (incolla risposta AI) ──
+  const cardOut=`<div class="lt-card-static">
+    <div class="lt-side-title">Lettera generata (incolla la risposta dell'AI)</div>
+    <textarea id="lt-out" rows="12" placeholder="Incolla qui la lettera prodotta..." oninput="window.Lettere._set('outputLetter', this.value)">${escapeHtml(w.outputLetter||'')}</textarea>
+    <div class="lt-row" style="margin-top:6px"><button class="btn ghost sm" onclick="window.Lettere._pasteInto('lt-out')">📋 Incolla dagli appunti</button>
+      <button class="btn ghost sm" onclick="window.Lettere._copyLetter()">Copia testo lettera</button></div></div>`;
+
+  return cardModello + cardDiag + cardRef + cardPrefs + cardPrompt + cardOut +
+    flowNav('lettere-anonimizza','lettere-verifica','Avanti → Verifica');
 }
 function wizStep4(){
   const w=L.wiz;
@@ -3718,6 +3817,10 @@ function renderAnonimizza(){
 function renderGenera(){
   if(!L.loaded){ mc().innerHTML=`<div class="loading"><span class="spinner"></span> Caricamento...</div>`; loadLibrary().then(renderGenera); return; }
   const w=ensureWiz();
+  if(L._refMode===undefined) L._refMode='auto';
+  // Aggiorno gli esempi RAG e (in modalità auto) seleziono il caso di riferimento
+  w.ragExamples = selectRAGExamples(w.ward, w.diagnosi, w.tipo);
+  _autoSelectRefCase();
   // Costruisco/aggiorno il prompt con le opzioni correnti
   w.builtPrompt = buildCopyPrompt(w);
   flowPageShell('lettere-genera','Genera lettera', wizStep3Combined());
@@ -4106,10 +4209,19 @@ window.Lettere = {
   nuova(){ L.wiz = newWizard(); navigate('lettere-carica'); },
   goStep(n){ if(L.wiz){ L.wiz.step=n; renderWizard(); } },
   _set(k,v){ if(L.wiz) L.wiz[k]=v; },
-  _setPref(k,v){ if(L.wiz&&L.wiz.prefs) L.wiz.prefs[k]=v; renderWizard(); },
-  _setWard(v){ L.wiz.ward=v; L.wiz.ragExamples=selectRAGExamples(v,L.wiz.diagnosi,L.wiz.tipo); },
-  _setTipo(v){ L.wiz.tipo=v; L.wiz.ragExamples=selectRAGExamples(L.wiz.ward,L.wiz.diagnosi,v); },
-  _setDiag(v){ L.wiz.diagnosi=v; L.wiz.ragExamples=selectRAGExamples(L.wiz.ward,v,L.wiz.tipo); },
+  _setPref(k,v){ const w=ensureWiz(); if(!w.prefs) w.prefs={}; w.prefs[k]=v; w.builtPrompt=buildCopyPrompt(w); renderGenera(); },
+  _setWard(v){ const w=ensureWiz(); w.ward=v; w.ragExamples=selectRAGExamples(v,w.diagnosi,w.tipo); _autoSelectRefCase(); },
+  _setTipo(v){ const w=ensureWiz(); w.tipo=v; w.ragExamples=selectRAGExamples(w.ward,w.diagnosi,v); _autoSelectRefCase(); renderGenera(); },
+  _setDiag(v){ const w=ensureWiz(); w.diagnosi=v; w.ragExamples=selectRAGExamples(w.ward,v,w.tipo); _autoSelectRefCase(); },
+  // Caso di riferimento (modalità auto/manual/none + inject)
+  _setRefMode(m){ L._refMode=m;
+    if(m==='auto'){ _autoSelectRefCase(); }
+    else if(m==='none'){ _refCaseId=null; }
+    renderGenera(); },
+  _setRefWardFilter(v){ L._refWardFilter=v; renderGenera(); },
+  _setRefCase(id){ _refCaseId=id||null; const w=ensureWiz(); w.builtPrompt=buildCopyPrompt(w); renderGenera(); },
+  _setRefInject(mode){ _refInjectMode=mode; const w=ensureWiz(); w.builtPrompt=buildCopyPrompt(w); renderGenera(); },
+  _togglePrefs(){ L._prefsOpen=!L._prefsOpen; const el=document.getElementById('lt-prefs-coll'); if(el) el.classList.toggle('open', L._prefsOpen); },
 
   async _onPdf(file){ if(!file)return; const w=ensureWiz();
     const box=document.getElementById('lt-pdf-status'); const txt=document.getElementById('lt-pdf-status-txt');
@@ -4313,6 +4425,7 @@ window.Lettere = {
       onConfirm:async()=>{ try{ await deleteWardRepo(id); toast('Reparto eliminato.','success'); renderLibreria(); }catch(e){ toast('Errore: '+e.message,'error'); } } });
   },
   _setLibWardFilter(v){ L._libWardFilter=v; renderLibreria(); },
+  _toggleAnonSubs(){ L._anonSubsOpen=!L._anonSubsOpen; const el=document.getElementById('lt-anon-subs'); if(el) el.classList.toggle('open', L._anonSubsOpen); },
 
   // ── Impostazioni: preferenze di default (salvate nel template utente) ──
   _setDefPref(key,val){
@@ -4417,6 +4530,41 @@ window.Lettere = {
   .lt-xls-preview{margin-top:10px}
   .lt-xls-preview-h{font-family:var(--mono);font-size:9px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
   .lt-xls-preview-c{background:var(--bg-sink);border:1px solid var(--rule);border-radius:3px;padding:10px 12px;font-family:var(--mono);font-size:10px;color:var(--ink-soft);max-height:200px;overflow-y:auto;white-space:pre-wrap}
+  /* Sezione collassabile (replica .collapsible-section originale) */
+  .lt-collapsible{border:1px solid var(--rule);border-radius:3px;margin-bottom:12px;overflow:hidden}
+  .lt-collapsible-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;background:var(--bg-paper);border:none;cursor:pointer;font-size:13px;color:var(--ink);text-align:left}
+  .lt-collapsible-toggle:hover{background:var(--bg-raised)}
+  .lt-ct-icon{font-size:9px;color:var(--ink-muted);transition:transform .15s}
+  .lt-collapsible.open .lt-ct-icon{transform:rotate(90deg)}
+  .lt-ct-label{flex:1}
+  .lt-ct-count{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:10px;padding:1px 9px}
+  .lt-collapsible-body{display:none;padding:10px 14px;border-top:1px solid var(--rule-soft);max-height:300px;overflow-y:auto}
+  .lt-collapsible.open .lt-collapsible-body{display:block}
+  /* Diff a due colonne (replica .diff-grid originale) */
+  .lt-diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .lt-diff-col{display:flex;flex-direction:column;min-width:0}
+  .lt-dlabel{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-muted);margin-bottom:6px}
+  .lt-edit-hint{color:var(--accent);text-transform:none;letter-spacing:0}
+  .lt-diff-scroll{border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+  .lt-dtext{width:100%;height:calc(60vh - 2px);box-sizing:border-box;padding:12px 14px;font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--ink);background:var(--bg-sink);overflow-y:auto;white-space:pre-wrap;border:none;resize:none;display:block}
+  textarea.lt-dtext{background:var(--bg-paper)}
+  @media (max-width:760px){ .lt-diff-grid{grid-template-columns:1fr} .lt-dtext{height:34vh} }
+  /* Tile modello lettera (replica letterTemplateGrid) */
+  .lt-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+  .lt-tile{cursor:pointer;border:2px solid var(--rule);border-radius:4px;padding:12px 14px;background:var(--bg-sink);display:flex;align-items:center;justify-content:center;text-align:center;transition:border-color .12s,background .12s}
+  .lt-tile:hover{border-color:var(--accent)}
+  .lt-tile.on{border-color:var(--accent);background:var(--accent-soft)}
+  .lt-tile-l{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink-soft)}
+  .lt-tile.on .lt-tile-l{color:var(--accent)}
+  /* Tab (replica .tabs/.tab dell'originale) */
+  .lt-tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .lt-tab{padding:6px 14px;border:1px solid var(--rule);border-radius:20px;background:transparent;font-size:12px;color:var(--ink-soft);cursor:pointer;transition:all .12s}
+  .lt-tab:hover{border-color:var(--accent);color:var(--ink)}
+  .lt-tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  /* Blocco preferenza (label sopra, tab sotto) */
+  .lt-prefblock{margin-bottom:14px}
+  .lt-prefblock label{display:block;margin-bottom:6px;font-size:12px;color:var(--ink)}
+  .lt-prefblock textarea{width:100%}
   /* Home a lista (sezioni una sotto l'altra come categorie Procedure) */
   .lt-home-group{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-muted);margin:18px 0 8px}
   .lt-home-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
