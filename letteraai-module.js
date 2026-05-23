@@ -884,12 +884,19 @@ const ANON_CONFIG = {
     // "Sottoscritto/Validato/Refertato da NOME COGNOME"
     { pattern: /(?:Sottoscritto|Validato|Refertato|Redatto|Compilato)\s+(?:digitalmente\s+)?da\s+[A-ZÀ-Ü][a-zà-ü'\-]+(?:\s+[A-ZÀ-Ü][a-zà-ü'\-]+)+/g,
       label: '[OPERATORE]', type: 'name' },
+    // "... HH:MM(:SS) da NOME COGNOME" — nome dopo orario+"da" (metadati documento).
+    // Sostituisce solo "da NOME COGNOME" lasciando intatto l'orario che precede.
+    { pattern: /\bda\s+[A-ZÀ-Ü][a-zà-ü'\-]+\s+[A-ZÀ-Ü][a-zà-ü'\-]+(?=\s*$|\s*\n)/gm,
+      replace: (m) => 'da [OPERATORE]', label: 'da [OPERATORE]', type: 'name' },
     { pattern: /Il\s+referto\s+è\s+conservato\s+secondo\s+la\s+normativa[^\n]*/gi,
       label: '[CONSERVAZIONE]', type: 'boiler' },
     { pattern: /Copia\s+di\s+(?:documento|referto)\s+firmato\s+e\s+conservato[^\n]*/gi,
       label: '[CONSERVAZIONE]', type: 'boiler' },
     { pattern: /Rappresentazione\s+di\s+un\s+referto\s+firmato\s+elettronicamente[^\n]*/gi,
       label: '[CONSERVAZIONE]', type: 'boiler' },
+    // Metadati documento: "Data creazione/ultima modifica DD/MM/YYYY HH:MM:SS [da OPERATORE]"
+    { pattern: /Data\s+(?:di\s+)?(?:creazione|(?:ultima\s+)?modifica)\s+\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}(?:\s+\d{1,2}[:\.]\d{2}(?:[:\.]\d{2})?)?(?:\s+da\s+\[OPERATORE\])?/gi,
+      label: '[METADATO]', type: 'boiler' },
     { pattern: /Pag(?:ina)?\.?\s*\d+\s*(?:di|\/)\s*\d+/gi,
       label: '[PAGINA]', type: 'boiler' },
     { pattern: /Data\s+stampa\s*:\s*[\d\/]+\s+[\d:]+/gi,
@@ -1877,6 +1884,20 @@ function extractPatientData(rawText) {
         pd.nome = words.pop();
         pd.cognome = words.join(' ');
         if (m[2]) pd.dataNascita = expandYear(m[2].replace(/-/g,'/'));
+      }
+    }
+  }
+
+  // ── Pattern 0.05 — "DD/MM/YYYY COGNOME NOME NatoPaziente" (data prima del nome) ──
+  // Frontespizio dove la data di nascita precede il nome, seguito da "Nato"/"Paziente"
+  if (!pd.cognome || !pd.nome) {
+    const m = rawText.match(/(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})\s+([A-ZÀÈÉÌÒÙ]{2,}(?:\s+[A-ZÀÈÉÌÒÙ]{2,})+)\s*(?:Nato|Paziente)/);
+    if (m) {
+      const words = m[2].trim().split(/\s+/).filter(w => w.length >= 2);
+      if (words.length >= 2) {
+        pd.nome = words.pop();
+        pd.cognome = words.join(' ');
+        if (!pd.dataNascita) pd.dataNascita = expandYear(m[1].replace(/-/g,'/'));
       }
     }
   }
