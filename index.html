@@ -4161,6 +4161,7 @@ const urlRouter = (function() {
       case 'lettere-verifica':         return ['lettere', 'verifica'];
       case 'lettere-esporta':          return ['lettere', 'esporta'];
       case 'lettere-libreria':         return ['lettere', 'libreria'];
+      case 'lettere-nuovo-caso':       return ['lettere', 'nuovo-caso'];
       case 'lettere-caso':             return ['lettere', 'caso', p.id];
       case 'lettere-impostazioni':     return ['lettere', 'impostazioni'];
       case 'lettere-personalizzazioni':return ['lettere', 'personalizzazioni'];
@@ -4225,6 +4226,7 @@ const urlRouter = (function() {
         if (second === 'verifica')          return { route: 'lettere-verifica', params: {}, blockHash };
         if (second === 'esporta')           return { route: 'lettere-esporta', params: {}, blockHash };
         if (second === 'libreria')          return { route: 'lettere-libreria', params: {}, blockHash };
+        if (second === 'nuovo-caso')        return { route: 'lettere-nuovo-caso', params: {}, blockHash };
         if (second === 'caso')              return { route: 'lettere-caso', params: { id: third }, blockHash };
         if (second === 'impostazioni')      return { route: 'lettere-impostazioni', params: {}, blockHash };
         if (second === 'personalizzazioni') return { route: 'lettere-personalizzazioni', params: {}, blockHash };
@@ -4385,6 +4387,7 @@ function navigate(route, params = {}) {
     case 'lettere-verifica':         _openLetterAI('renderVerifica'); break;
     case 'lettere-esporta':          _openLetterAI('renderEsporta'); break;
     case 'lettere-libreria':         _openLetterAI('renderLibreria'); break;
+    case 'lettere-nuovo-caso':       _openLetterAI('renderNuovoCaso'); break;
     case 'lettere-caso':             _openLetterAI('renderCaso', params.id); break;
     case 'lettere-impostazioni':     _openLetterAI('renderImpostazioni'); break;
     case 'lettere-personalizzazioni':_openLetterAI('renderPersonalizzazioni'); break;
