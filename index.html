@@ -7743,6 +7743,7 @@ function renderNumeri(filter, targetContainer) {
                       ${isReorderable ? `<span class="ssp-reorder edit-only">
                         <button class="btn-icon-mini" onclick="event.stopPropagation();moveSezione('${escapeJs(g.id)}','${sezNomeEsc}',-1)" title="Sposta su" ${isFirst ? 'disabled' : ''}>↑</button>
                         <button class="btn-icon-mini" onclick="event.stopPropagation();moveSezione('${escapeJs(g.id)}','${sezNomeEsc}',1)" title="Sposta giù" ${isLast ? 'disabled' : ''}>↓</button>
+                        <button class="btn-icon-mini" onclick="event.stopPropagation();editSezioneAlias('${escapeJs(g.id)}','${sezNomeEsc}')" title="Modifica alias sezione">✎</button>
                       </span>` : ''}
                     </div>`;
                   }).join('')}
@@ -8125,8 +8126,7 @@ function renderPinnedContattiSection(allGroups) {
       const extra = [c.breve ? `${c.breve}` : '', persPart, cellPart].filter(Boolean).join(' · ');
       const dispNum = [nums, extra].filter(Boolean).join(' · ');
       const cls = (typeof classifyContatto === 'function') ? classifyContatto(c) : { kind: '' };
-      const isGuardia = cls.kind === 'guardia' || (c.tag || []).includes('guardia');
-      const numCls = isGuardia ? 'pinned-contatto-num-guardia'
+      const numCls = cls.kind === 'guardia' ? 'pinned-contatto-num-guardia'
         : cls.kind === 'reparto' ? 'pinned-contatto-num-reparto'
         : cls.kind === 'utile' ? 'pinned-contatto-num-utile'
         : '';
@@ -8227,9 +8227,10 @@ function classifyContatto(c) {
   // Per gli altri casi (ambulatorio, segreteria, direzione) ritorno kind='altro' MA con
   // group calcolato per mantenere l'ordinamento (es. ambulatorio dopo reparto).
   // Niente pillola visibile, ma ordinamento preservato.
+  // I tag NON influenzano l'evidenziazione: servono solo alla ricerca. L'auto-detect del
+  // colore guarda esclusivamente l'etichetta (o la scelta esplicita dell'utente, gestita sopra).
   const sezione = (c.sezione || '').toLowerCase();
-  const tags = (c.tag || []).map(t => t.toLowerCase());
-  const isGuardia = tags.includes('guardia') || /\b(guardia|mdg|medico di guardia|reperibile)\b/i.test(c.etichetta || '');
+  const isGuardia = /\b(guardia|mdg|medico di guardia|reperibile)\b/i.test(c.etichetta || '');
   const isReparto = /\b(reparto|guardiola|caposala|coordinat|sala medici|sala operatoria|medici di reparto|degenz|infermier|\bdeg\b|front office|u\.?c\.?i\.?c|u\.?t\.?i\.?c|unità coronarica|terapia intensiva|subintensiva|sub-intensiva|emodinamica|elettrofisiologia|bancone|area infermieri|stud(io|i) medici)/i.test(c.etichetta || '');
   const isSegreteria = /\b(segreteria|segr\.)\b/i.test(c.etichetta || '');
   const isDirezione = /\b(direttore|studio (medico|prof|dr|dott)|scuola|didattic|universitari[oa])\b/i.test(c.etichetta || '');
@@ -8539,6 +8540,61 @@ async function moveSezione(gid, sezNome, direction) {
   }
 }
 
+// Modifica gli alias (nomi alternativi per la ricerca) di una sezione di un gruppo.
+// Le sezioni sono salvate in g.sezioni[]; se la sezione non ha ancora un oggetto
+// dedicato (è solo implicita dal campo "sezione" dei contatti), lo creo.
+async function editSezioneAlias(gid, sezNome) {
+  if (!state.session || !state.session.username) {
+    return toast('Login richiesto per modificare', 'warning');
+  }
+  const src = findNumeriSource({ groupId: gid }) || 'aopd';
+  const data = { ...getNumeriDataForSource(src) };
+  const gruppi = data.gruppi || [];
+  const g = gruppi.find(x => x.id === gid);
+  if (!g) return toast('Gruppo non trovato', 'error');
+  const sezObj = (g.sezioni || []).find(s => (s.nome || '').trim().toLowerCase() === sezNome.trim().toLowerCase());
+  const aliasStr = sezObj && Array.isArray(sezObj.alias) ? sezObj.alias.join(', ') : '';
+  const body = `
+    <form onsubmit="return false;" style="display:flex;flex-direction:column;gap:12px;">
+      <div class="field">
+        <label>Alias della sezione <span style="font-weight:normal;color:var(--ink-muted);">(nomi alternativi per la ricerca, separati da virgola)</span></label>
+        <input type="text" id="se-alias" value="${escapeHtml(aliasStr)}" placeholder="es. ucic, unità coronarica">
+        <div style="font-size:11px;color:var(--ink-muted);margin-top:3px;">Sezione: <strong>${escapeHtml(sezNome)}</strong></div>
+      </div>
+    </form>`;
+  showModal({
+    title: 'Alias sezione',
+    subtitle: `${escapeHtml(g.nome)}`,
+    body,
+    actions: [
+      { label: 'Annulla', variant: 'ghost', onClick: () => closeModal() },
+      { label: 'Salva', onClick: async () => {
+        const alias = ($('se-alias').value || '').split(',').map(s => s.trim()).filter(Boolean);
+        const sezioni = [...(g.sezioni || [])];
+        const idx = sezioni.findIndex(s => (s.nome || '').trim().toLowerCase() === sezNome.trim().toLowerCase());
+        if (idx >= 0) {
+          const updated = { ...sezioni[idx] };
+          if (alias.length) updated.alias = alias; else delete updated.alias;
+          sezioni[idx] = updated;
+        } else {
+          // La sezione non aveva un oggetto dedicato: lo creo (solo se c'è un alias da salvare)
+          if (alias.length) sezioni.push({ nome: sezNome, alias });
+        }
+        const newGruppi = gruppi.map(x => x.id === gid ? { ...x, sezioni } : x);
+        try {
+          await saveNumeriForSource(src, { ...data, gruppi: newGruppi }, `alias sezione "${sezNome}" in ${g.nome}`);
+          toast('Alias sezione salvato', 'success');
+          closeModal();
+          await buildIndex();
+          if (state.showExtendedNumeri?.osa) await loadExtendedNumeri('osa');
+          if (state.showExtendedNumeri?.iov) await loadExtendedNumeri('iov');
+          if (state.currentView === 'numeri') navigate('numeri', state.currentParams || {});
+        } catch (e) { toast('Errore: ' + e.message, 'error'); }
+      } }
+    ]
+  });
+}
+
 function renderNumeroRow(c, gruppoId, classify, opts) {
   const hideLuogo = opts && opts.hideLuogo;
   const cls = classify || (c._classify || classifyContatto(c));
@@ -8596,9 +8652,6 @@ function renderNumeroRow(c, gruppoId, classify, opts) {
     <span style="font-size:10px;color:var(--ink-muted);font-family:var(--mono);letter-spacing:.04em;">TAG:</span>
     <button class="kind-chip ${currentKind === 'guardia' ? 'active' : ''}" onclick="event.stopPropagation();setContactKind('${escapeJs(c.id)}','guardia')" title="Guardia / MdG / Reperibile" style="--chip-color:var(--danger);--chip-bg:#fef0ef;">● Guardia</button>
     <button class="kind-chip ${currentKind === 'reparto' ? 'active' : ''}" onclick="event.stopPropagation();setContactKind('${escapeJs(c.id)}','reparto')" title="Reparto/Sala/Guardiola" style="--chip-color:var(--accent);--chip-bg:var(--accent-soft);">● Reparto/Sala</button>    <button class="kind-chip ${currentKind === 'utile' ? 'active' : ''}" onclick="event.stopPropagation();setContactKind('${escapeJs(c.id)}','utile')" title="Numero utile da evidenziare" style="--chip-color:#2e7d32;--chip-bg:#e8f5e9;">● Utili</button>
-    ${isAutoDetect ? `<span style="font-size:10px;color:var(--ink-muted);font-style:italic;">auto</span>` : ''}
-    ${isExplicitNone ? `<span style="font-size:10px;color:var(--ink-muted);font-style:italic;">senza tag</span>` : ''}
-    ${hasPending ? `<span style="font-size:10px;color:var(--warning);font-style:italic;">(modificato)</span>` : ''}
   </div>` : '';
   // Click row handler
   const rowClickHandler = c.id
@@ -11192,7 +11245,6 @@ function renderCalendario(params) {
   // del full re-render e riduce la latenza percepita su mobile da ~100ms a ~20ms.
   $('main-content').innerHTML = `
     <div class="page-head">
-      <div class="page-eyebrow">${buildBreadcrumb([{label:'Home', route:'home'}])}Calendario</div>
       <h1 class="page-title">Calendario</h1>
     </div>
 
@@ -14407,6 +14459,10 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
   const cellularePersonaleStr = Array.isArray(c.cellulare_personale) ? c.cellulare_personale.join(', ') : (c.cellulare_personale || '');
   const cellulareAziendaleStr = Array.isArray(c.cellulare_aziendale) ? c.cellulare_aziendale.join(', ') : (c.cellulare_aziendale || '');
   const tagStr = (c.tag || []).join(', ');
+  // Raccolgo tutti i tag già usati nei contatti (di tutte le sorgenti) per la lista di scelta
+  const allTagsSet = new Set();
+  (state.index?.numeri?.gruppi || []).forEach(g => (g.contatti || []).forEach(ct => (ct.tag || []).forEach(t => { if (t) allTagsSet.add(t); })));
+  const allTagsOptions = [...allTagsSet].sort((a, b) => a.localeCompare(b)).map(t => `<option value="${escapeHtml(t)}">`).join('');
   const body = `
     <form id="contatto-form" onsubmit="return false;" style="display:flex;flex-direction:column;gap:12px;">
       <div class="field">
@@ -14534,13 +14590,18 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
         <input type="text" id="ce-orari" value="${escapeHtml(c.orari || '')}" placeholder="es. L/V 8-14">
       </div>
       <div class="field">
-        <label>Tag (separati da virgola)</label>
-        <input type="text" id="ce-tag" value="${escapeHtml(tagStr)}" placeholder="es. guardia, guardiola">
-        <div style="font-size:11px;color:var(--ink-muted);margin-top:3px;">Tag speciali: <code>guardia</code>, <code>guardiola</code> (mostrano badge)</div>
+        <label>Tag <span style="font-weight:normal;color:var(--ink-muted);">(per la ricerca — scegli dai suggerimenti o aggiungine di nuovi, separati da virgola)</span></label>
+        <input type="text" id="ce-tag" value="${escapeHtml(tagStr)}" list="ce-tag-list" placeholder="es. guardia, guardiola, urgenze">
+        <datalist id="ce-tag-list">${allTagsOptions}</datalist>
+        ${allTagsSet.size ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${[...allTagsSet].sort((a,b)=>a.localeCompare(b)).map(t => `<button type="button" class="kind-chip" style="font-size:11px;padding:2px 8px;" onclick="(function(){const i=document.getElementById('ce-tag');const cur=i.value.split(',').map(s=>s.trim()).filter(Boolean);if(!cur.includes('${escapeJs(t)}')){cur.push('${escapeJs(t)}');i.value=cur.join(', ');}})()">+ ${escapeHtml(t)}</button>`).join('')}</div>` : ''}
       </div>
       <div class="field">
         <label>Note</label>
         <textarea id="ce-note" rows="2" style="width:100%;resize:vertical;font-family:var(--sans);font-size:13px;padding:8px;">${escapeHtml(c.note || '')}</textarea>
+      </div>
+      <div class="field">
+        <label>Alias <span style="font-weight:normal;color:var(--ink-muted);">(nomi alternativi per la ricerca, separati da virgola)</span></label>
+        <input type="text" id="ce-alias" value="${escapeHtml((c.alias || []).join(', '))}" placeholder="es. centralino, portineria">
       </div>
     </form>`;
   showModal({
@@ -14565,6 +14626,8 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
         const orari = $('ce-orari').value.trim();
         const tag = $('ce-tag').value.split(',').map(s => s.trim()).filter(Boolean);
         const note = $('ce-note').value.trim();
+        const aliasEl = document.getElementById('ce-alias');
+        const alias = aliasEl ? aliasEl.value.split(',').map(s => s.trim()).filter(Boolean) : [];
         const newC = { id: c.id || (slugifyLocal(`${gruppoId}-${etichetta}`).slice(0, 60) + '-' + Date.now().toString(36).slice(-4)), etichetta };
         if (numeri.length) newC.numeri = numeri;
         if (cellularePersonaleList.length === 1) newC.cellulare_personale = cellularePersonaleList[0];
@@ -14582,6 +14645,7 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
         if (orari) newC.orari = orari;
         if (tag.length) newC.tag = tag;
         if (note) newC.note = note;
+        if (alias.length) newC.alias = alias;
         if (!newC.numeri && !newC.cellulare_personale && !newC.cellulare_aziendale && !newC.breve) {
           return toast('Inserire almeno un numero (interno, cellulare o breve)', 'warning');
         }
@@ -15185,13 +15249,17 @@ function openGruppoEditor({ mode, gruppo, source }) {
         <label>Email del gruppo</label>
         <input type="text" id="ge-email" value="${escapeHtml(g.email || '')}" class="mono-input" placeholder="es. neurologia@aopd.veneto.it">
       </div>
+      <div class="field">
+        <label>Alias <span style="font-weight:normal;color:var(--ink-muted);">(nomi alternativi per la ricerca, separati da virgola)</span></label>
+        <input type="text" id="ge-alias" value="${escapeHtml((g.alias || []).join(', '))}" placeholder="es. neuro, stroke unit">
+      </div>
       <fieldset style="border:1px solid var(--rule);border-radius:4px;padding:10px;">
         <legend style="font-size:12px;color:var(--ink-muted);padding:0 6px;">Ubicazione</legend>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="field"><label>Struttura/Edificio</label><input type="text" id="ge-struttura" value="${escapeHtml(ub.struttura || '')}" placeholder="es. Edificio Neurologia"></div>
           <div class="field"><label>Piano</label><input type="text" id="ge-piano" value="${escapeHtml(ub.piano || '')}" placeholder="es. terra, 1°, 2°"></div>
           <div class="field" style="grid-column:1/-1;"><label>Indirizzo</label><input type="text" id="ge-indirizzo" value="${escapeHtml(ub.indirizzo || '')}" placeholder="es. Via Giustiniani, 2"></div>
-          <div class="field" style="grid-column:1/-1;"><label>Sede ospedale (per AOPD: Sant'Antonio se applicabile)</label><input type="text" id="ge-sede" value="${escapeHtml(ub.ospedale_sede || '')}" placeholder="opzionale"></div>
+          <div class="field" style="grid-column:1/-1;"><label>Sede ospedale <span style="font-weight:normal;color:var(--ink-muted);">(se diversa da AOPD, es. Sant'Antonio)</span></label><input type="text" id="ge-sede" value="${escapeHtml(ub.ospedale_sede || '')}" placeholder="opzionale"></div>
         </div>
       </fieldset>
     </form>`;
@@ -15218,8 +15286,11 @@ function openGruppoEditor({ mode, gruppo, source }) {
         const piano = $('ge-piano').value.trim();
         const indirizzo = $('ge-indirizzo').value.trim();
         const sede = $('ge-sede').value.trim();
+        const aliasGeEl = document.getElementById('ge-alias');
+        const aliasGe = aliasGeEl ? aliasGeEl.value.split(',').map(s => s.trim()).filter(Boolean) : [];
         if (direttore) updatedGroup.direttore = direttore;
         if (email) updatedGroup.email = email;
+        if (aliasGe.length) updatedGroup.alias = aliasGe;
         const ubicazione = {};
         if (struttura) ubicazione.struttura = struttura;
         if (piano) ubicazione.piano = piano;
@@ -15230,7 +15301,7 @@ function openGruppoEditor({ mode, gruppo, source }) {
         // che non vengono toccati dal form. Senza questo passaggio le UOC perderebbero le
         // sezioni custom o altri campi al primo "Salva" da editor.
         if (!isNew) {
-          const knownEditedFields = new Set(['id','nome','nome_ridotto','direttore','email','ubicazione','contatti']);
+          const knownEditedFields = new Set(['id','nome','nome_ridotto','direttore','email','ubicazione','contatti','alias']);
           for (const key of Object.keys(g)) {
             if (!knownEditedFields.has(key)) {
               updatedGroup[key] = g[key];
@@ -15735,9 +15806,6 @@ function renderSearchResults(query, targetId) {
       ${mk('guardia', '● Guardia', '#fef0ef', 'var(--danger)')}
       ${mk('reparto', '● Reparto/Sala', 'var(--accent-soft)', 'var(--accent)')}
       ${mk('utile',   '● Utili',   '#e8f5e9', '#2e7d32')}
-      ${isAutoDetect ? `<span style="font-size:10px;color:var(--ink-muted);font-style:italic;">auto</span>` : ''}
-      ${isExplicitNone ? `<span style="font-size:10px;color:var(--ink-muted);font-style:italic;">senza tag</span>` : ''}
-      ${pending ? `<span style="font-size:10px;color:var(--warning);font-style:italic;">(modificato)</span>` : ''}
     </div>`;
   };
 
