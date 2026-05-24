@@ -3559,14 +3559,23 @@ async function bootstrapPrompts(){
 
 /* Bootstrap template library (identico allo standalone: legge templates/*.json) */
 async function bootstrapTemplatesRepo(){
-  _templates = [DEFAULT_TEMPLATE_EMBEDDED];
+  // Replica la logica dell'originale: i template del repo SOSTITUISCONO la lista;
+  // il default embedded si usa solo se il repo non ne contiene. Dedup per id per
+  // evitare doppioni (es. se nel repo esiste un default.json oltre all'embedded).
+  const fetched = [];
   const entries = await ghList(PATHS.templatesDir);
   for (const e of entries){
     if (e.type !== 'file' || !e.name.endsWith('.json')) continue;
     const f = await ghGet(e.path);
     if (!f) continue;
-    try { const tpl = JSON.parse(f.content); tpl._sha = f.sha; _templates.push(tpl); } catch(err){}
+    try {
+      const tpl = JSON.parse(f.content); tpl._sha = f.sha;
+      if (tpl && tpl.id && !fetched.some(x => x.id === tpl.id)) fetched.push(tpl);
+    } catch(err){}
   }
+  // Garantisco la presenza del default: se il repo non lo include, aggiungo l'embedded in testa
+  if (!fetched.some(t => t.id === 'default')) fetched.unshift(DEFAULT_TEMPLATE_EMBEDDED);
+  _templates = fetched.length ? fetched : [DEFAULT_TEMPLATE_EMBEDDED];
   L.templates = _templates;
 }
 
@@ -3999,11 +4008,22 @@ async function extractXlsRows(file){
    VIEWS — render in #main-content
    ═══════════════════════════════════════════════════════════════════════════ */
 function mc(){ return document.getElementById('main-content'); }
-function pageHead(title, eyebrow, actionsHtml){
+function pageHead(title, eyebrowHtml, actionsHtml){
+  // eyebrowHtml è HTML grezzo (tipicamente un breadcrumb): NON va escapato.
   return `<div class="page-head"><div>
-    ${eyebrow?`<div class="page-eyebrow">${escapeHtml(eyebrow)}</div>`:''}
+    ${eyebrowHtml?`<div class="page-eyebrow">${eyebrowHtml}</div>`:''}
     <div class="page-title">${escapeHtml(title)}</div></div>
     ${actionsHtml?`<div class="page-head-actions">${actionsHtml}</div>`:''}</div>`;
+}
+// Breadcrumb in stile CollinettaAI: "LetteraAI › <sezione>". Usa la buildBreadcrumb
+// dell'host se disponibile; altrimenti un fallback locale con lo stesso markup.
+function lettereBreadcrumb(trail){
+  const segs=[{label:'LetteraAI', route:'lettere'}].concat(trail||[]);
+  if (typeof window!=='undefined' && typeof window.buildBreadcrumb==='function'){
+    return window.buildBreadcrumb(segs);
+  }
+  return segs.map(s=>`<span class="bc-segment" onclick="navigate('${s.route}')">${escapeHtml(s.label)}</span>`)
+    .join(' <span class="bc-sep">›</span> ');
 }
 function newWizard(seed){
   return Object.assign({
@@ -4018,7 +4038,7 @@ function renderLettereHome(){
     if (L._homeLoadAttempted){
       // loadLibrary è già stata tentata ma L.loaded resta false (es. gh non disponibile):
       // mostro un errore invece di riciclare all'infinito (causava il freeze di Chrome).
-      mc().innerHTML = pageHead('LetteraAI','Generatore lettere di dimissione') +
+      mc().innerHTML = pageHead('LetteraAI') +
         `<div class="lt-note" style="border-left-color:var(--danger);color:var(--danger);">
           Impossibile caricare la libreria. Verifica di aver effettuato l'accesso e che la
           connessione a GitHub sia attiva. Ricarica la pagina e riprova.</div>`;
@@ -4038,7 +4058,7 @@ function renderLettereHome(){
       <span class="lt-home-ic">📋</span><div><div class="lt-home-t">Segnalazioni</div><div class="lt-home-d">Segnalazioni ricevute dagli utenti (admin).</div></div></div>
     <div class="lt-home-row" onclick="navigate('lettere-config')">
       <span class="lt-home-ic">📝</span><div><div class="lt-home-t">Editor Prompt</div><div class="lt-home-d">Prompt di sistema e libreria template (admin).</div></div></div>` : '';
-  mc().innerHTML = pageHead('LetteraAI','Generatore lettere di dimissione',
+  mc().innerHTML = pageHead('LetteraAI', '',
     `<button class="btn" onclick="window.Lettere.nuova()">Nuova lettera</button>`) + `
     <div class="lt-home-group">Flusso di generazione</div>
     <div class="lt-home-list">
@@ -4058,9 +4078,7 @@ function renderLettereHome(){
       <div class="lt-home-row" onclick="navigate('lettere-libreria')">
         <span class="lt-home-ic">📚</span><div><div class="lt-home-t">Libreria Casi <span class="lt-badge">${L.casi.length}</span></div><div class="lt-home-d">Esempi anonimizzati con fingerprint di stile, e gestione reparti.</div></div></div>
       <div class="lt-home-row" onclick="navigate('lettere-impostazioni')">
-        <span class="lt-home-ic">⚙</span><div><div class="lt-home-t">Impostazioni</div><div class="lt-home-d">Preferenze di default per la generazione delle lettere.</div></div></div>
-      <div class="lt-home-row" onclick="navigate('lettere-personalizzazioni')">
-        <span class="lt-home-ic">✦</span><div><div class="lt-home-t">Mie personalizzazioni</div><div class="lt-home-d">Template personale e regole aggiuntive.</div></div></div>
+        <span class="lt-home-ic">⚙</span><div><div class="lt-home-t">Preferenze</div><div class="lt-home-d">Preferenze lettera, template personale e regole aggiuntive.</div></div></div>
       <div class="lt-home-row" onclick="navigate('lettere-segnalazioni')">
         <span class="lt-home-ic">⚠</span><div><div class="lt-home-t">Segnala Errori</div><div class="lt-home-d">Segnala errori o suggerimenti.</div></div></div>
       ${adminItems}
@@ -4352,8 +4370,7 @@ function flowNav(prevRoute, nextRoute, nextLabel){
   return `<div class="lt-wiz-actions">${prev}${next}</div>`;
 }
 function flowPageShell(activeRoute, title, bodyHtml){
-  mc().innerHTML = pageHead(title, 'LetteraAI',
-    `<button class="btn ghost" onclick="navigate('lettere')">← LetteraAI</button>`) +
+  mc().innerHTML = pageHead(title, lettereBreadcrumb([{label:title, route:activeRoute}])) +
     flowBar(activeRoute) + `<div class="lt-wizbody">${bodyHtml}</div>`;
 }
 
@@ -4572,20 +4589,23 @@ function renderLibreria(){
       </div>
       <div class="lt-ward-list">${repartiRows}</div>
     </div>` : '';
-  // Form "Aggiungi Caso" in fondo, integrato nella pagina (come l'originale)
-  const addCaseCard = admin ? renderAddCaseForm() : '';
-  mc().innerHTML=pageHead('Libreria Casi','LetteraAI',`<button class="btn ghost" onclick="navigate('lettere')">← LetteraAI</button>`)+`
+  // Form "Aggiungi Caso": compare solo quando L._libAddOpen è true (toggle dal pulsante)
+  const addCaseCard = (admin && L._libAddOpen) ? renderAddCaseForm() : '';
+  const addCaseBtn = admin ? `<button class="btn sm" onclick="window.Lettere._toggleAddCase()">${L._libAddOpen?'✕ Chiudi':'+ Aggiungi caso'}</button>` : '';
+  mc().innerHTML=pageHead('Libreria Casi', lettereBreadcrumb([{label:'Libreria Casi', route:'lettere-libreria'}]))+`
     <div class="lt-card-static">
       <div class="lt-row" style="justify-content:space-between;align-items:center;margin-bottom:12px">
         <span class="lt-status">${casiFiltrati.length} cas${casiFiltrati.length===1?'o':'i'}${wardFilter!=='__all__'?' (filtrati)':''} · ${(L.wards||[]).length} repart${(L.wards||[]).length===1?'o':'i'}</span>
-        <div class="lt-row" style="align-items:center;gap:8px"><label style="margin:0;white-space:nowrap">🏥 Reparto</label>
-          <select onchange="window.Lettere._setLibWardFilter(this.value)" style="min-width:160px">${filterOpts}</select></div>
+        <div class="lt-row" style="align-items:center;gap:8px">
+          <label style="margin:0;white-space:nowrap">🏥 Reparto</label>
+          <select onchange="window.Lettere._setLibWardFilter(this.value)" style="min-width:160px">${filterOpts}</select>
+          ${addCaseBtn}</div>
       </div>
       <div class="lt-lib-grid">${cards}</div>
     </div>` +
+    addCaseCard +
     editPanel +
-    repartiCard +
-    addCaseCard;
+    repartiCard;
 }
 
 // Pannello di modifica caso INLINE (compare sotto la lista nella Libreria, come l'originale)
@@ -4675,31 +4695,56 @@ function renderCaso(id){
       <button class="btn ghost sm" onclick="window.Lettere._printCaso('${escapeHtml(id)}')">Stampa</button>
       <button class="btn ghost sm" onclick="window.Lettere._exportCaso('${escapeHtml(id)}')">Esporta Word</button>
     </div>`:'';
-  mc().innerHTML=pageHead(c.diagnosi||c.name||c.id,`${wardName(c)||''} · ${(c.createdAt||'').slice(0,10)}`,
-    `<button class="btn ghost" onclick="navigate('lettere-libreria')">← Libreria</button>${edit}${del}`)+`
+  mc().innerHTML=pageHead(c.diagnosi||c.name||c.id,
+    lettereBreadcrumb([{label:'Libreria Casi', route:'lettere-libreria'},{label:(c.diagnosi||c.name||'Caso'), route:'lettere-caso'}]),
+    `${edit}${del}`)+`
+    <div class="lt-status" style="margin-bottom:14px">${escapeHtml(wardName(c)||'')}${wardName(c)?' · ':''}${escapeHtml((c.createdAt||'').slice(0,10))}</div>
     ${c.cartella?`<details class="lt-det"><summary>Cartella anonimizzata</summary><pre class="lt-pre">${escapeHtml(c.cartella)}</pre></details>`:''}
     <div class="lt-side-title" style="margin-top:18px">Lettera</div><pre class="lt-pre">${escapeHtml(c.letter||'(vuota)')}</pre>
     ${expBtns}
     ${c.fingerprint?`<details class="lt-det"><summary>Fingerprint stilistico</summary><pre class="lt-pre">${escapeHtml(typeof c.fingerprint==='string'?c.fingerprint:JSON.stringify(c.fingerprint,null,2))}</pre></details>`:''}`;
 }
 
-/* ── Mie personalizzazioni (tutti gli utenti) ── */
-function renderPersonalizzazioni(){
-  if(!L.loaded){ mc().innerHTML=`<div class="loading"><span class="spinner"></span> Caricamento...</div>`; loadLibrary().then(renderPersonalizzazioni); return; }
+/* ── "Mie personalizzazioni" è ora unito in Preferenze (renderImpostazioni) ── */
+function renderPersonalizzazioni(){ navigate('lettere-impostazioni'); }
+
+/* ── Preferenze: preferenze lettera + personalizzazioni (override + template personale).
+   Unisce il vecchio panel "Impostazioni" e "Mie personalizzazioni" dell'originale. ── */
+function renderImpostazioni(){
+  if(!L.loaded){ mc().innerHTML=`<div class="loading"><span class="spinner"></span> Caricamento...</div>`; loadLibrary().then(renderImpostazioni); return; }
+  const p = (L.userTemplateData && L.userTemplateData.prefs) ? L.userTemplateData.prefs : DEFAULT_USER_PREFS;
+  const seg=(key,opts)=>opts.map(o=>`<button class="lt-seg${p[key]===o.v?' on':''}" onclick="window.Lettere._setDefPref('${key}','${o.v}')">${o.l}</button>`).join('');
+  // Dati per il template personale (base + overrides)
   const tplOpts=_templates.map(t=>`<option value="${escapeHtml(t.id)}"${(_userTemplateData&&_userTemplateData.base_template_id===t.id)?' selected':''}>${escapeHtml(t.name||t.id)}</option>`).join('');
-  // Valori effettivi del template personale (base + overrides)
   const ov = (_userTemplateData && _userTemplateData.overrides) || {};
   const baseTpl = _templates.find(t=>t.id===(_userTemplateData&&_userTemplateData.base_template_id)) || _templates[0] || {};
   const v=(k,def)=> (ov[k]!==undefined ? ov[k] : (baseTpl[k]!==undefined ? baseTpl[k] : (def||'')));
   const ordine = (ov.ordine_sezioni && ov.ordine_sezioni.length) ? ov.ordine_sezioni : (baseTpl.ordine_sezioni||[]);
-  mc().innerHTML=pageHead('Mie personalizzazioni','LetteraAI',`<button class="btn ghost" onclick="navigate('lettere')">← LetteraAI</button>`)+`
+  mc().innerHTML=pageHead('Preferenze', lettereBreadcrumb([{label:'Preferenze', route:'lettere-impostazioni'}]))+`
+    <div class="lt-card-static">
+      <div class="lt-side-title">Preferenze generazione lettera (default)</div>
+      <div class="lt-prefs">
+        <div class="lt-pref-row"><label>Esami laboratorio</label><div class="lt-segs">${seg('lab',[{v:'all',l:'Tutti i valori'},{v:'altered',l:'Solo patologici'}])}</div></div>
+        <div class="lt-pref-row"><label>Accertamenti strumentali</label><div class="lt-segs">${seg('acc',[{v:'brief',l:'Sintetici'},{v:'extended',l:'Estesi'}])}</div></div>
+        <div class="lt-pref-row"><label>Decorso clinico</label><div class="lt-segs">${seg('dec',[{v:'short',l:'Conciso'},{v:'standard',l:'Standard'},{v:'long',l:'Dettagliato'}])}</div></div>
+        <div class="lt-pref-row"><label>Anamnesi</label><div class="lt-segs">${seg('an',[{v:'essential',l:'Essenziale'},{v:'complete',l:'Completa'}])}</div></div>
+        <div class="lt-pref-row"><label>Raccomandazioni</label><div class="lt-segs">${seg('rac',[{v:'main',l:'Principali'},{v:'all',l:'Tutte'}])}</div></div>
+        <div class="lt-pref-row"><label>Terapia dimissione</label><div class="lt-segs">${seg('ter',[{v:'last',l:'Ultima terapia'},{v:'lastPlusHome',l:'+ domiciliare'}])}</div></div>
+      </div>
+      <div class="field" style="margin-top:14px"><label>Altre preferenze (testo libero)</label>
+        <textarea id="lt-def-custom" rows="4" placeholder="Aggiungi altre preferenze..." oninput="window.Lettere._setDefPref('custom', this.value)">${escapeHtml(p.custom||'')}</textarea></div>
+      <div class="lt-wiz-actions"><button class="btn ghost sm" onclick="window.Lettere._resetDefPrefs()">↺ Reset</button>
+        <button class="btn ghost sm" onclick="window.Lettere._discardDefPrefs()">✕ Scarta modifiche</button>
+        <button class="btn" onclick="window.Lettere._saveDefPrefs()">✓ Salva Preferenze</button></div>
+    </div>
+
     <div class="lt-card-static">
       <div class="lt-side-title">Aggiunte personali alle regole (override additivo)</div>
       <p class="lt-status" style="margin:0 0 10px">Regole aggiuntive applicate sempre, in coda al system prompt. Salvate in <code>${PATHS.userOverrides}${escapeHtml(username())}.md</code></p>
       <textarea id="lt-uoverride" rows="10" class="mono-input" placeholder="AGGIUNTE PERSONALI:&#10;- Per FA cronica includere sempre HAS-BLED nel decorso&#10;- ...">${escapeHtml(_userOverride||'')}</textarea>
-      <div class="lt-row" style="margin-top:10px">
-        <button class="btn" onclick="window.Lettere._saveOverride()">Salva</button>
-        <button class="btn ghost" onclick="window.Lettere._discardOverride()">✕ Scarta modifiche</button></div>
+      <div class="lt-row" style="margin-top:10px;justify-content:flex-end;gap:8px">
+        <button class="btn ghost" onclick="window.Lettere._discardOverride()">✕ Scarta modifiche</button>
+        <button class="btn" onclick="window.Lettere._saveOverride()">Salva</button></div>
     </div>
 
     <div class="lt-card-static">
@@ -4725,44 +4770,13 @@ function renderPersonalizzazioni(){
       </div>
       <div class="field"><label>Ordine delle sezioni della lettera (trascina per riordinare)</label>
         <div id="utpl-sections"></div></div>
-      <div class="lt-row" style="justify-content:flex-end;gap:8px"><button class="btn ghost" onclick="window.Lettere._resetMyTpl()">↺ Ripristina default</button>
+      <div class="lt-row" style="justify-content:flex-end;gap:8px">
+        <button class="btn ghost" onclick="window.Lettere._discardMyTpl()">✕ Scarta modifiche</button>
+        <button class="btn ghost" onclick="window.Lettere._resetMyTpl()">↺ Ripristina default</button>
         <button class="btn" onclick="window.Lettere._saveMyTpl()">Salva template</button></div>
     </div>`;
   // Renderizzo l'editor di riordino sezioni (riusa l'helper esistente)
   setTimeout(()=>renderSectionsEditor('utpl-sections', ordine), 50);
-}
-
-/* ── Impostazioni: preferenze di default per la generazione (panel5 originale) ──
-   Sono le preferenze salvate nel template utente, applicate come default a ogni nuova lettera. */
-function renderImpostazioni(){
-  if(!L.loaded){ mc().innerHTML=`<div class="loading"><span class="spinner"></span> Caricamento...</div>`; loadLibrary().then(renderImpostazioni); return; }
-  const p = (L.userTemplateData && L.userTemplateData.prefs) ? L.userTemplateData.prefs : DEFAULT_USER_PREFS;
-  const seg=(key,opts)=>opts.map(o=>`<button class="lt-seg${p[key]===o.v?' on':''}" onclick="window.Lettere._setDefPref('${key}','${o.v}')">${o.l}</button>`).join('');
-  // Link all'Editor Prompt (avanzato, solo admin) — nell'originale era nella stessa pagina Impostazioni
-  const advLink = canEdit() ? `
-    <div class="lt-card-static" style="margin-top:18px">
-      <div class="lt-row" style="justify-content:space-between;align-items:center">
-        <div><div class="lt-side-title" style="margin:0">Impostazioni avanzate</div>
-          <div class="lt-status" style="margin-top:4px">Editor dei prompt globali (sistema, decorso, verifica, esami lab) e libreria template lettera.</div></div>
-        <button class="btn ghost" onclick="navigate('lettere-config')">Apri Editor Prompt →</button>
-      </div>
-    </div>` : '';
-  mc().innerHTML=pageHead('Impostazioni','LetteraAI',`<button class="btn ghost" onclick="navigate('lettere')">← LetteraAI</button>`)+`
-    <div class="lt-card-static">
-      <div class="lt-side-title">Preferenze generazione lettera (default)</div>
-      <div class="lt-prefs">
-        <div class="lt-pref-row"><label>Esami laboratorio</label><div class="lt-segs">${seg('lab',[{v:'all',l:'Tutti i valori'},{v:'altered',l:'Solo patologici'}])}</div></div>
-        <div class="lt-pref-row"><label>Accertamenti strumentali</label><div class="lt-segs">${seg('acc',[{v:'brief',l:'Sintetici'},{v:'extended',l:'Estesi'}])}</div></div>
-        <div class="lt-pref-row"><label>Decorso clinico</label><div class="lt-segs">${seg('dec',[{v:'short',l:'Conciso'},{v:'standard',l:'Standard'},{v:'long',l:'Dettagliato'}])}</div></div>
-        <div class="lt-pref-row"><label>Anamnesi</label><div class="lt-segs">${seg('an',[{v:'essential',l:'Essenziale'},{v:'complete',l:'Completa'}])}</div></div>
-        <div class="lt-pref-row"><label>Raccomandazioni</label><div class="lt-segs">${seg('rac',[{v:'main',l:'Principali'},{v:'all',l:'Tutte'}])}</div></div>
-        <div class="lt-pref-row"><label>Terapia dimissione</label><div class="lt-segs">${seg('ter',[{v:'last',l:'Ultima terapia'},{v:'lastPlusHome',l:'+ domiciliare'}])}</div></div>
-      </div>
-      <div class="field" style="margin-top:14px"><label>Altre preferenze (testo libero)</label>
-        <textarea id="lt-def-custom" rows="4" placeholder="Aggiungi altre preferenze..." oninput="window.Lettere._setDefPref('custom', this.value)">${escapeHtml(p.custom||'')}</textarea></div>
-      <div class="lt-wiz-actions"><button class="btn ghost sm" onclick="window.Lettere._resetDefPrefs()">↺ Reset</button>
-        <button class="btn" onclick="window.Lettere._saveDefPrefs()">✓ Salva Preferenze</button></div>
-    </div>` + advLink;
 }
 
 /* ── Segnala errori (tutti possono inviare) — solo il form ── */
@@ -4776,7 +4790,7 @@ const REPORT_CATEGORIES = [
 function renderSegnalazioni(){
   if(!L.loaded){ mc().innerHTML=`<div class="loading"><span class="spinner"></span> Caricamento...</div>`; loadLibrary().then(renderSegnalazioni); return; }
   const catOpts = REPORT_CATEGORIES.map(([v,l])=>`<option value="${v}">${escapeHtml(l)}</option>`).join('');
-  mc().innerHTML = pageHead('Segnala Errori','LetteraAI',`<button class="btn ghost" onclick="navigate('lettere')">← LetteraAI</button>`) + `
+  mc().innerHTML = pageHead('Segnala Errori', lettereBreadcrumb([{label:'Segnala Errori', route:'lettere-segnalazioni'}])) + `
     <div class="lt-card-static">
       <div class="lt-side-title">Nuova segnalazione</div>
       <div class="field"><label>Categoria</label><select id="rep-cat">${catOpts}</select></div>
@@ -4794,7 +4808,7 @@ function renderSegnalazioni(){
 function renderSegnalazioniAdmin(){
   if(!canEdit()){ mc().innerHTML=pageHead('Segnalazioni','LetteraAI')+'<p>Riservato agli amministratori.</p>'; return; }
   if(!L.loaded){ mc().innerHTML=`<div class="loading"><span class="spinner"></span> Caricamento...</div>`; loadLibrary().then(renderSegnalazioniAdmin); return; }
-  mc().innerHTML = pageHead('Segnalazioni','LetteraAI',`<button class="btn ghost" onclick="navigate('lettere')">← LetteraAI</button>`) +
+  mc().innerHTML = pageHead('Segnalazioni', lettereBreadcrumb([{label:'Segnalazioni', route:'lettere-segnalazioni-admin'}])) +
     `<div id="rep-list"><div class="loading"><span class="spinner"></span> Caricamento segnalazioni...</div></div>`;
   _refreshReportsList();
 }
@@ -4838,7 +4852,7 @@ function renderConfig(){
       <td style="text-align:right"><button class="btn ghost sm" onclick="window.Lettere._editTpl('${escapeHtml(t.id)}')">Modifica</button>${del}</td>
     </tr>`;
   }).join('')||'<tr><td colspan="4" class="lt-sub-empty">Nessun template.</td></tr>';
-  mc().innerHTML=pageHead('Editor Prompt + Template','LetteraAI',`<button class="btn ghost" onclick="navigate('lettere')">← LetteraAI</button>`)+`
+  mc().innerHTML=pageHead('Editor Prompt + Template', lettereBreadcrumb([{label:'Editor Prompt', route:'lettere-config'}]))+`
     <div class="lt-card-static">
       <div class="lt-side-title">Prompt globali</div>
       <div class="lt-tabs" style="margin-bottom:12px">${tabBtns}</div>
@@ -5193,7 +5207,7 @@ window.Lettere = {
     const fingerprint=get('nc-fp').trim();
     const doSave=async()=>{ try{
         await saveCaso({ name, diagnosi:name, wardId:wardId||undefined, tipo, cartella, lettera:letter, fingerprint });
-        toast('Caso "'+name+'" salvato.','success'); navigate('lettere-libreria');
+        toast('Caso "'+name+'" salvato.','success'); L._libAddOpen=false; renderLibreria();
       }catch(e){ toast('Errore: '+e.message,'error'); } };
     // Stesso controllo privacy di _addToLibrary: la libreria non deve contenere dati reali
     const flags=detectResidualPII(letter);
@@ -5252,6 +5266,8 @@ window.Lettere = {
   _closeEditCaso(){ L._libEditId=null; renderLibreria(); },
   _toggleWardForm(){ L._libWardFormOpen=!L._libWardFormOpen; renderLibreria();
     setTimeout(()=>{ const i=document.getElementById('lt-ward-name'); if(i) i.focus(); },60); },
+  _toggleAddCase(){ L._libAddOpen=!L._libAddOpen; renderLibreria();
+    setTimeout(()=>{ const p=document.getElementById('nc-name'); if(p) p.scrollIntoView({behavior:'smooth',block:'center'}); },60); },
   async _copyFpPromptEdit(id){
     const c=L.casi.find(x=>x.id===id)||{};
     const cartella=(document.getElementById('ce-cartella')||{}).value || c.cartella || '';
@@ -5399,6 +5415,11 @@ window.Lettere = {
     try{ await saveUserTemplateToRepo(data); toast('Preferenze salvate.','success'); }
     catch(e){ toast('Errore: '+e.message,'error'); }
   },
+  // Scarta le modifiche non salvate alle preferenze: ricarica i valori dal repo
+  async _discardDefPrefs(){
+    try{ await loadUserTemplateRepo(); }catch(e){}
+    renderImpostazioni(); toast('Modifiche scartate.','info');
+  },
   _resetReport(){ ['rep-desc','rep-prompt','rep-letter'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
     const cat=document.getElementById('rep-cat'); if(cat) cat.selectedIndex=0; toast('Modulo segnalazione svuotato.','info'); },
 
@@ -5413,7 +5434,12 @@ window.Lettere = {
     if(!_userTemplateData) _userTemplateData={};
     _userTemplateData.base_template_id=id;
     L.userTemplateData=_userTemplateData;
-    renderPersonalizzazioni();
+    renderImpostazioni();
+  },
+  // Scarta le modifiche non salvate al template personale: ricarica dal repo
+  async _discardMyTpl(){
+    try{ await loadUserTemplateRepo(); }catch(e){}
+    renderImpostazioni(); toast('Modifiche scartate.','info');
   },
   async _saveMyTpl(){
     const get=(id)=>{ const el=document.getElementById(id); return el?el.value:''; };
@@ -5438,7 +5464,7 @@ window.Lettere = {
     Modals().confirm({ title:'Ripristinare il template al default?', message:'Cancellerà le tue personalizzazioni del template (intestazione, firme, ordine sezioni).', confirmLabel:'Ripristina', danger:true,
       onConfirm:async()=>{
         const data={ base_template_id:(_templates[0]&&_templates[0].id)||'default', overrides:{}, updatedAt:new Date().toISOString() };
-        try{ await saveUserTemplateToRepo(data); toast('Template ripristinato al default.','success'); renderPersonalizzazioni(); }
+        try{ await saveUserTemplateToRepo(data); toast('Template ripristinato al default.','success'); renderImpostazioni(); }
         catch(e){ toast('Errore: '+e.message,'error'); }
       } });
   },
