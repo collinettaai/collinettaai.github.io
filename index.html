@@ -9982,7 +9982,7 @@ function renderModuloCompilatore(slug, det) {
   const isDirty = editMode && _boxesAreDirty(slug);
 
   area.innerHTML = `
-    <div class="mod-toolbar">
+    <div class="mod-toolbar" id="mod-toolbar">
       <button class="btn ghost" onclick="renderModuloViewer('${escapeJs(slug)}', state.moduliCache['${escapeJs(slug)}'])" title="Torna alla vista pagine">◀ Indietro</button>
       <button class="btn ${editMode ? 'primary' : 'ghost'}" onclick="toggleModuloEditMode('${escapeJs(slug)}')">
         ${editMode ? '✓ Esci modalità modifica' : '✎ Modifica box'}
@@ -9990,7 +9990,7 @@ function renderModuloCompilatore(slug, det) {
       ${editMode ? `
         <button class="btn ghost" onclick="addModuloBox('${escapeJs(slug)}')">+ Aggiungi box</button>
         ${isDirty ? `
-          <button class="btn primary" id="mod-btn-save" onclick="salvaModuloBoxes('${escapeJs(slug)}')" style="background:#185FA5;border-color:#185FA5;">Salva su GitHub</button>
+          <button class="btn primary" id="mod-btn-save" onclick="salvaModuloBoxes('${escapeJs(slug)}')" style="background:#185FA5;border-color:#185FA5;">Salva</button>
           <button class="btn ghost" onclick="scartaModuloBoxesModifiche('${escapeJs(slug)}')">Scarta</button>
           <span class="mod-toolbar-hint" style="color:#A32D2D;font-style:normal;">Modifiche non salvate</span>
         ` : `<span class="mod-toolbar-hint">Trascina i box per spostarli, usa gli angoli per ridimensionarli.</span>`}
@@ -10033,7 +10033,7 @@ function toggleModuloEditMode(slug) {
   if (!c) return;
   // Se sto USCENDO dalla modalità modifica con modifiche non salvate, chiedi conferma
   if (c.editMode && _boxesAreDirty(slug)) {
-    const ok = confirm('Ci sono modifiche non salvate ai box.\n\nUscendo dalla modalità modifica le modifiche restano in questa sessione ma non sul repo.\n\nVuoi uscire comunque? (Per salvare, usa "Salva su GitHub")');
+    const ok = confirm('Ci sono modifiche non salvate ai box.\n\nUscendo dalla modalità modifica le modifiche restano in questa sessione ma non sul repo.\n\nVuoi uscire comunque? (Per salvare, usa "Salva")');
     if (!ok) return;
   }
   c.editMode = !c.editMode;
@@ -10222,6 +10222,7 @@ function changeBoxFontSize(slug, idx, delta) {
   }
   _persistModulo(slug);
   refreshModuloOverlays(slug);
+  _refreshModuloToolbar(slug);
 }
 
 function setBoxAttr(slug, idx, attr, value) {
@@ -10248,7 +10249,9 @@ function setBoxAttr(slug, idx, attr, value) {
   // dal tipo del campo selezionato e devono essere ricostruite). Per align/font_size/formato
   // niente re-render → niente scatti, niente focus perso.
   if (attr === 'campo') {
-    _refreshModuloEditorPanelLight(slug);
+    _refreshModuloEditorPanelLight(slug); // aggiorna anche la toolbar
+  } else {
+    _refreshModuloToolbar(slug); // il dirty può essere cambiato: aggiorno i pulsanti salva/scarta
   }
 }
 
@@ -10779,8 +10782,32 @@ function _refreshModuloEditorPanelLight(slug) {
   if (!aside) return;
   // Ri-renderizzo l'editor panel inline (no toolbar/preview, già in DOM)
   aside.innerHTML = _renderModuloEditorPanel(slug, c);
-  // Aggiorno anche la toolbar (perché il dirty potrebbe essere cambiato — anche se qui non lo è
-  // strettamente, è coerente)
+  // Aggiorno anche la toolbar perché lo stato dirty potrebbe essere cambiato
+  _refreshModuloToolbar(slug);
+}
+
+// Ridisegna SOLO la toolbar dei moduli (senza full re-render), così il pulsante
+// "Salva"/"Scarta" compare/sparisce subito quando cambia lo stato dirty dei box.
+function _refreshModuloToolbar(slug) {
+  const c = state.moduliCache[slug];
+  if (!c) return;
+  const tb = document.getElementById('mod-toolbar');
+  if (!tb) return;
+  const editMode = !!c.editMode;
+  const isDirty = editMode && _boxesAreDirty(slug);
+  tb.innerHTML = `
+    <button class="btn ghost" onclick="renderModuloViewer('${escapeJs(slug)}', state.moduliCache['${escapeJs(slug)}'])" title="Torna alla vista pagine">◀ Indietro</button>
+    <button class="btn ${editMode ? 'primary' : 'ghost'}" onclick="toggleModuloEditMode('${escapeJs(slug)}')">
+      ${editMode ? '✓ Esci modalità modifica' : '✎ Modifica box'}
+    </button>
+    ${editMode ? `
+      <button class="btn ghost" onclick="addModuloBox('${escapeJs(slug)}')">+ Aggiungi box</button>
+      ${isDirty ? `
+        <button class="btn primary" id="mod-btn-save" onclick="salvaModuloBoxes('${escapeJs(slug)}')" style="background:#185FA5;border-color:#185FA5;">Salva</button>
+        <button class="btn ghost" onclick="scartaModuloBoxesModifiche('${escapeJs(slug)}')">Scarta</button>
+        <span class="mod-toolbar-hint" style="color:#A32D2D;font-style:normal;">Modifiche non salvate</span>
+      ` : `<span class="mod-toolbar-hint">Trascina i box per spostarli, usa gli angoli per ridimensionarli.</span>`}
+    ` : ''}`;
 }
 
 // Avvia drag (handle=null) o resize (handle=tl/tr/bl/br). Usa Pointer Events per mouse+touch.
@@ -10917,7 +10944,8 @@ function _startBoxDragOrResize(slug, idx, ev, handleType, layer, img) {
       boxEl.style.top = box.y + '%';
     }
     _persistModulo(slug);
-    // NESSUN re-render full alla fine del drag.
+    // Aggiorno solo la toolbar (compare "Salva"/"Scarta"); nessun re-render full del drag.
+    _refreshModuloToolbar(slug);
   };
 
   // Su Android, pointer events possono coesistere con touch events. Se il browser triggera
@@ -11325,7 +11353,7 @@ async function salvaModuloBoxes(slug) {
       toast('Errore salvataggio: ' + e.message, 'error');
     }
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Salva su GitHub'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Salva'; }
   }
 }
 
