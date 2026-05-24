@@ -1879,9 +1879,9 @@ function isPwaStandalone() {
 function shouldGuardBack() {
   // Cattura editor file aperto (qualsiasi tipo): protezione dall'uscita accidentale.
   if (state.editingContext) return { active: true, silent: false };
-  // NB: in passato c'era anche una guardia "home in PWA" (doppio back per uscire dall'app).
-  // È stata rimossa perché la sua entry pushState non veniva contata in _historyPos/_historyMax,
-  // disallineando i pulsanti freccia avanti/indietro (bug: dopo 2 back il sistema si bloccava).
+  // Cattura home in PWA: doppio tasto back per uscire dall'app (evita uscite accidentali su mobile).
+  const onHome = (state.currentView === 'home' || !state.currentView);
+  if (onHome && isPwaStandalone()) return { active: true, silent: true };
   return { active: false, silent: false };
 }
 
@@ -2172,7 +2172,7 @@ const userPrefs = {
     try {
       const file = await gh.getFile(path);
       if (!file) {
-        state.userPrefs = { pins: [], home_numeri: [], pin_order: {}, device_prefs: {}, calendar_filters: {}, custom_sezioni: [], _sha: null };
+        state.userPrefs = { pins: [], home_numeri: [], pin_order: {}, device_prefs: {}, calendar_filters: {}, custom_sezioni: [], pref_uoc: [], _sha: null };
         return;
       }
       const parsed = jsyaml.load(file.content) || {};
@@ -2193,6 +2193,7 @@ const userPrefs = {
         device_prefs: devicePrefs,
         calendar_filters: (parsed.calendar_filters && typeof parsed.calendar_filters === 'object') ? parsed.calendar_filters : {},
         custom_sezioni: Array.isArray(parsed.custom_sezioni) ? parsed.custom_sezioni : [],
+        pref_uoc: Array.isArray(parsed.pref_uoc) ? parsed.pref_uoc : [],
         _sha: file.sha
       };
       // Migrazione: i contatti pinnati nel vecchio sistema `pins` (type='contatto')
@@ -2217,7 +2218,7 @@ const userPrefs = {
       if (myPrefs.font_size) applyFontSize(myPrefs.font_size);
     } catch (e) {
       console.warn('[userPrefs] load failed:', e);
-      state.userPrefs = { pins: [], home_numeri: [], pin_order: {}, device_prefs: {}, calendar_filters: {}, custom_sezioni: [], _sha: null };
+      state.userPrefs = { pins: [], home_numeri: [], pin_order: {}, device_prefs: {}, calendar_filters: {}, custom_sezioni: [], pref_uoc: [], _sha: null };
     }
   },
 
@@ -2242,6 +2243,7 @@ const userPrefs = {
       device_prefs: state.userPrefs.device_prefs || {},
       calendar_filters: state.userPrefs.calendar_filters || {},
       custom_sezioni: state.userPrefs.custom_sezioni || [],
+      pref_uoc: state.userPrefs.pref_uoc || [],
       ultima_modifica: nowIso(),
       modificato_da: state.session.username
     };
@@ -2329,6 +2331,22 @@ const userPrefs = {
     userPrefs.scheduleSave();
   },
 
+  // --- Preferiti rubrica: sezione UOC standard (separata dai fissati in home) ---
+  hasPrefUoc(cid) {
+    if (!state.userPrefs) return false;
+    return (state.userPrefs.pref_uoc || []).includes(cid);
+  },
+  togglePrefUoc(cid) {
+    if (!state.userPrefs) return false;
+    if (!state.userPrefs.pref_uoc) state.userPrefs.pref_uoc = [];
+    const idx = state.userPrefs.pref_uoc.indexOf(cid);
+    let added;
+    if (idx >= 0) { state.userPrefs.pref_uoc.splice(idx, 1); added = false; }
+    else { state.userPrefs.pref_uoc.push(cid); added = true; }
+    userPrefs.scheduleSave();
+    return added;
+  },
+
   // --- Rubrica preferiti: ordinamento per UOC + contatti dentro UOC ---
   // Struttura: pin_order = { _uoc: ['gid1','gid2',...], 'gid1': ['cid1','cid2',...] }
   getUocOrder() {
@@ -2390,22 +2408,24 @@ const userPrefs = {
   // OPPURE in almeno una sezione personalizzata. La sezione UOC standard usa
   // la pseudo-id '_uoc' nel popup di gestione.
   isContattoPreferito(cid) {
-    if (userPrefs.hasHomeNumero(cid)) return true;
+    if (userPrefs.hasPrefUoc(cid)) return true;
     return userPrefs.getCustomSezioni().some(s => (s.contatti || []).includes(cid));
   },
   // Ritorna gli id delle sezioni dei preferiti in cui si trova il contatto
   // ('_uoc' per la sezione UOC standard, oppure l'id della sezione custom).
   getSezioniDiContatto(cid) {
     const ids = [];
-    if (userPrefs.hasHomeNumero(cid)) ids.push('_uoc');
+    if (userPrefs.hasPrefUoc(cid)) ids.push('_uoc');
     userPrefs.getCustomSezioni().forEach(s => { if ((s.contatti || []).includes(cid)) ids.push(s.id); });
     return ids;
   },
   // Toggle dell'appartenenza di un contatto a una sezione dei preferiti.
-  // sezId '_uoc' = sezione UOC standard (home_numeri); altrimenti sezione custom.
+  // sezId '_uoc' = sezione UOC standard (pref_uoc); altrimenti sezione custom.
+  // NB: i "Contatti fissati" della home (home_numeri) sono una cosa SEPARATA dai preferiti
+  // della rubrica: si gestiscono solo dalla ricerca dedicata in home. Qui non vengono toccati.
   toggleContattoInSezione(cid, sezId) {
     if (sezId === '_uoc') {
-      return userPrefs.toggleHomeNumero(cid); // ritorna true se aggiunto
+      return userPrefs.togglePrefUoc(cid); // ritorna true se aggiunto
     }
     const sez = userPrefs.getCustomSezioni().find(s => s.id === sezId);
     if (!sez) return false;
@@ -2522,7 +2542,7 @@ function bucketSezioneLabel(b) {
 function isPinned(type, id) {
   if (!userPrefs) return false;
   // I contatti usano il sistema home_numeri dedicato
-  if (type === 'contatto') return userPrefs.hasHomeNumero(id);
+  if (type === 'contatto') return userPrefs.isContattoPreferito(id);
   const pin = (type === 'gruppo')
     ? { type, id }
     : { type, slug: id };
@@ -4381,6 +4401,19 @@ const urlRouter = (function() {
           return;
         }
       }
+      // La guardia ha lasciato passare: l'entry corrente è quella "tecnica" della guardia
+      // (stesso URL della pagina). Faccio un back aggiuntivo soppresso per arrivare alla
+      // pagina reale precedente, così i contatori restano coerenti e le frecce non si bloccano.
+      _suppress = true;
+      window.history.back();
+      setTimeout(() => {
+        _suppress = false;
+        _onHistoryPop(window.history.state);
+        const r = readUrl();
+        if (r.blockHash) state.pendingBlockHash = r.blockHash;
+        navigate(r.route, r.params);
+      }, 0);
+      return;
     }
     // Aggiorna il tracker di posizione history (per abilitare/disabilitare frecce interne)
     _onHistoryPop(e.state);
@@ -7523,14 +7556,12 @@ function renderCustomSezioniHtml() {
       const g = (c._gruppo) ? c._gruppo : '';
       const sezName = (c.sezione || '').trim();
       const uocName = g ? stripPrefixNome(g) : '';
-      // Richiesta: nelle sezioni personalizzate mostra "Sezione · UOC" sotto l'etichetta
-      const ctx = [sezName, uocName].filter(Boolean).join(' · ');
+      // Nelle sezioni personalizzate il sottotitolo è "UOC ridotta · Sezione"
+      const ctx = [uocName, sezName].filter(Boolean).join(' · ');
       const removeBtn = editMode
-        ? `<button class="btn-icon-mini edit-only" style="color:var(--danger);" onclick="event.stopPropagation();removeFromCustomSezione('${escapeJs(sez.id)}','${escapeJs(cid)}')" title="Rimuovi dalla sezione">✕</button>`
+        ? `<button class="btn-icon-mini edit-only" style="color:var(--danger);margin-left:4px;" onclick="event.stopPropagation();removeFromCustomSezione('${escapeJs(sez.id)}','${escapeJs(cid)}')" title="Rimuovi dalla sezione">✕</button>`
         : '';
-      // Uso renderNumeroRow per coerenza con la rubrica; il pulsante rimuovi è
-      // aggiunto a parte, avvolgendo la riga.
-      return `<div style="position:relative;">${renderNumeroRow(c, c._gruppoId || null, null, { hideLuogo: true, contextLine: ctx, pinnedView: true })}${removeBtn ? `<div style="position:absolute;top:6px;right:6px;">${removeBtn}</div>` : ''}</div>`;
+      return renderContattoCard(c, { contextLine: ctx, showStarInEdit: true, removeBtn });
     }).join('') || '<div style="padding:8px 14px;font-size:12px;color:var(--ink-muted);font-style:italic;">Nessun contatto in questa sezione. Usa la ☆ su un contatto per aggiungerlo qui.</div>';
     return `<div class="pinned-uoc-block" data-cs-id="${escapeHtml(sez.id)}">
       <div class="pinned-uoc-header">
@@ -7586,7 +7617,7 @@ function openPinSezioniPopup(cid) {
   const c = findContattoBySlug(cid);
   if (!c) return;
   const sezioni = userPrefs.getCustomSezioni();
-  const inUoc = userPrefs.hasHomeNumero(cid);
+  const inUoc = userPrefs.hasPrefUoc(cid);
   // Nome UOC del contatto per l'etichetta della sezione standard
   const gNome = c._gruppo ? stripPrefixNome(c._gruppo) : 'UOC';
   const uocRow = `<button class="btn ${inUoc ? '' : 'ghost'}" style="width:100%;text-align:left;margin-bottom:6px;${inUoc ? 'background:var(--accent-soft);border-color:var(--accent);' : ''}"
@@ -7674,14 +7705,12 @@ function renderNumeri(filter, targetContainer) {
     // "Tutti": mostra tutti i gruppi (nessun filtro), senza redirect ai preferiti.
     filteredGruppi = allGroups;
   } else if (filter === 'pinned') {
-    // Sotto le UOC mostro SOLO i contatti che appartengono alla "sezione UOC standard"
-    // (home_numeri). Le sezioni personalizzate sono rese separatamente da
-    // renderCustomSezioniHtml e sono indipendenti (un contatto può stare in entrambe).
+    // Sotto le UOC mostro SOLO i contatti nella "sezione UOC standard" dei preferiti
+    // (pref_uoc). Separato dai fissati in home (home_numeri). Le sezioni personalizzate
+    // sono rese separatamente da renderCustomSezioniHtml.
     filteredGruppi = allGroups.filter(g => (g._source || 'aopd') === 'aopd').map(g => {
       const gPinned = isPinned('gruppo', g.id);
-      const cInUoc = (g.contatti || []).filter(c => userPrefs.hasHomeNumero(c.id));
-      // Se il gruppo (UOC) è pinnato, mostro tutti i suoi contatti; altrimenti solo
-      // quelli nella sezione UOC standard.
+      const cInUoc = (g.contatti || []).filter(c => userPrefs.hasPrefUoc(c.id));
       if (gPinned) return { ...g };
       if (cInUoc.length) return { ...g, contatti: cInUoc };
       return null;
@@ -7982,9 +8011,11 @@ function renderNumeri(filter, targetContainer) {
         list.forEach(g => (g.contatti || []).forEach(c => items.push({ c, g })));
         return renderContattiGroupedBox(items);
       }
-      // Filtro "preferiti" (chip ★): uso rendering minimale stile "pinned section"
+      // Vista preferiti (★): box "UOC · Sezione" come MdG e ricerca
       if (filter === 'pinned' && src === 'aopd') {
-        return renderPinnedContattiSection(list);
+        const items = [];
+        list.forEach(g => (g.contatti || []).forEach(c => items.push({ c, g })));
+        return renderContattiGroupedBox(items);
       }
       // Altre source (osa/iov) non mostrano nulla in modalità pinned
       if (filter === 'pinned') return '';
@@ -8384,11 +8415,51 @@ function renderHomeNumeriSection() {
   </div>`;
 }
 
-// Raggruppa una lista di {c, g} per UOC+sezione e li rende come righe rubrica standard
-// dentro box con titolo "UOC semplificato · Sezione". Usato da home e vista MdG.
+// Rende un singolo contatto nello STESSO stile dei risultati di ricerca globale
+// (classe sr-contact: etichetta a sinistra, numeri tutti a destra, evidenziazione per kind).
+// Niente stella di default. Usato in home, MdG e preferiti per uniformare la visualizzazione.
+function renderContattoCard(c, opts = {}) {
+  const parts = [];
+  if (c.numeri) c.numeri.forEach(n => { if (n) parts.push({ value: String(n), type: 'int' }); });
+  if (c.breve) parts.push({ value: String(c.breve), type: 'breve' });
+  if (c.cellulare_personale) {
+    const cells = Array.isArray(c.cellulare_personale) ? c.cellulare_personale : [c.cellulare_personale];
+    cells.forEach(cell => parts.push({ value: String(cell), type: 'pers' }));
+  }
+  if (c.cellulare_aziendale) {
+    const cells = Array.isArray(c.cellulare_aziendale) ? c.cellulare_aziendale : [c.cellulare_aziendale];
+    cells.forEach(cell => parts.push({ value: String(cell), type: 'cell' }));
+  }
+  const cls = classifyContatto(c);
+  const isGuardia = cls.kind === 'guardia';
+  const isReparto = cls.group === 2 && !isGuardia && c.kind !== 'utile';
+  const isUtile = c.kind === 'utile';
+  const numChipClass = isGuardia ? 'sr-num-chip-guardia' : isReparto ? 'sr-num-chip-reparto' : isUtile ? 'sr-num-chip-utile' : 'sr-num-chip';
+  const numChipsHtml = parts.length
+    ? parts.map(p => {
+        const prefix = p.type === 'pers' ? '<span class="sr-num-prefix">pers.</span>' : '';
+        return `<span class="sr-num-chip ${numChipClass} sr-num-chip-${p.type}" onclick="event.stopPropagation();copyNumber('${escapeJs(p.value)}')">${prefix}${escapeHtml(p.value)}</span>`;
+      }).join('')
+    : `<span class="sr-num-chip ${numChipClass}">—</span>`;
+  const ctxHtml = opts.contextLine ? `<div class="sr-contact-luogo">${escapeHtml(opts.contextLine)}</div>` : '';
+  const rowCls = isGuardia ? 'sr-contact sr-contact-guardia' : isReparto ? 'sr-contact sr-contact-reparto' : isUtile ? 'sr-contact sr-contact-utile' : 'sr-contact';
+  // Stella opzionale solo in edit-mode (gestione preferiti)
+  const star = opts.showStarInEdit && c.id ? ` <span class="edit-only" style="display:inline-flex;align-items:center;">${renderPinButton('contatto', c.id)}</span>` : '';
+  // Pulsante rimuovi opzionale (sezioni custom in edit-mode)
+  const removeBtn = opts.removeBtn || '';
+  return `<div class="${rowCls}" onclick="navigate('numeri', {filter:'${escapeJs(c.id)}'})">
+    <div class="sr-contact-left">
+      <div class="sr-contact-label">${escapeHtml(c.etichetta)}${star}${removeBtn}</div>
+      ${ctxHtml}
+    </div>
+    <div class="sr-contact-nums">${numChipsHtml}</div>
+  </div>`;
+}
+
+// Raggruppa una lista di {c, g} per UOC+sezione e li rende dentro box con header
+// "UOC ridotto · Sezione" nello stile dei risultati di ricerca. Usato da home e MdG.
 function renderContattiGroupedBox(items) {
   if (!items.length) return '';
-  // Raggruppo per chiave UOC + sezione, preservando l'ordine d'inserimento
   const groups = [];
   const byKey = {};
   items.forEach(({ c, g }) => {
@@ -8401,13 +8472,14 @@ function renderContattiGroupedBox(items) {
     byKey[key].contatti.push({ c, g });
   });
   return groups.map(grp => {
-    const title = grp.sezione ? `${escapeHtml(grp.gNome)} · ${escapeHtml(grp.sezione)}` : escapeHtml(grp.gNome);
-    const rows = grp.contatti.map(({ c, g }) =>
-      renderNumeroRow(c, g.id, c._classify, { gruppo: g, hideLuogo: true })
-    ).join('');
-    return `<div class="numeri-group" style="margin-bottom:16px;">
-      <h2 class="numeri-group-title" style="cursor:pointer;" onclick="navigate('numeri', {filter:'${escapeJs(grp.gId)}'})">${title}</h2>
-      ${rows}
+    const titleUoc = `<span class="ctx-uoc" onclick="event.stopPropagation();navigate('numeri',{filter:'${escapeJs(grp.gId)}'})">${escapeHtml(grp.gNome)}</span>`;
+    const titleSez = grp.sezione ? `<span class="sede-bucket-sep"> · </span><span class="ctx-sezione">${escapeHtml(grp.sezione)}</span>` : '';
+    const rows = grp.contatti.map(({ c }) => renderContattoCard(c)).join('');
+    return `<div class="sr-sede-bucket" style="margin-bottom:10px;">
+      <div class="sr-sede-bucket-header sr-sede-bucket-static">
+        <span class="sede-bucket-tipo">${titleUoc}${titleSez}</span>
+      </div>
+      <div class="sr-sede-bucket-contatti">${rows}</div>
     </div>`;
   }).join('');
 }
