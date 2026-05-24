@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   MODULO LETTERE — generatore lettere di dimissione/trasferimento (LetteraAI)
+   MODULO LETTERE — generatore lettere di dimissione/trasferimento (LetteraAI) 
    Integrazione additiva in CollinettaAI — versione COPIA-INCOLLA (nessuna API)
 
    La LOGICA DI DOMINIO (anonimizzazione, fingerprint V3, template, override,
