@@ -758,8 +758,9 @@ const ANON_CONFIG = {
       label: 'Infermiere: [OPERATORE]', type: 'name' },
     // "Dr. I. D'Errico" / "dott Pieroni" / "prof Guerra" — flexible title (with/without dot,
     // any case: dott dott. Dott. dr Dr. prof Prof. med), optional ssa suffix,
-    // optional initials, then name with compound/apostrophe surnames
-    { pattern: /(?:[Dd]ott\.?(?:ssa\.?)?|[Dd]r\.?(?:ssa\.?)?|[Pp]r?of\.?(?:ssa\.?)?|[Pp]orf\.?|[Mm]ed\.?)\s*(?:[A-Z]\.\s*){0,3}[A-Z][a-zA-Z'\u00C0-\u00FF\-]{2,}(?:\s+(?:De[ilr]?|Da[il]?|Dal|Di|Della|Von|Al|El)\s+[A-Z][a-zA-Z'\u00C0-\u00FF]+|\s+(?![Dd]ott\.?|[Dd]r\.?|[Pp]rof\.?)[A-Z][a-zA-Z'\u00C0-\u00FF\-]+)*/g,
+    // optional initials, then name with compound/apostrophe surnames.
+    // Include varianti con errori di scrittura: Dott.sa, dottsa, ott.ssa, D.ssa, Dssa, dr.sa, drssa
+    { pattern: /(?:[Dd]ott?\.?(?:\.?ss?a\.?)?|[Dd]r\.?(?:\.?ss?a\.?)?|[Dd]\.?ss?a\.?|[Oo]tt\.?(?:\.?ss?a\.?)?|[Pp]r?of\.?(?:ss?a\.?)?|[Pp]orf\.?|[Mm]ed\.?)\s*(?:[A-Z]\.\s*){0,3}[A-Z][a-zA-Z'\u00C0-\u00FF\-]{2,}(?:\s+(?:De[ilr]?|Da[il]?|Dal|Di|Della|Von|Al|El)\s+[A-Z][a-zA-Z'\u00C0-\u00FF]+|\s+(?![Dd]ott\.?|[Dd]r\.?|[Pp]rof\.?)[A-Z][a-zA-Z'\u00C0-\u00FF\-]+)*/g,
       label: '[OPERATORE]', type: 'name' },
     // "[NOME]NomeCognome" or "LUCACognome" — patient name glued to label "Cognome"
     { pattern: /[A-Za-z\u00C0-\u00FF]+(?=Cognome\b)/g,
@@ -888,14 +889,18 @@ const ANON_CONFIG = {
     // Sostituisce solo "da NOME COGNOME" lasciando intatto l'orario che precede.
     { pattern: /\bda\s+[A-ZÀ-Ü][a-zà-ü'\-]+\s+[A-ZÀ-Ü][a-zà-ü'\-]+(?=\s*$|\s*\n)/gm,
       replace: (m) => 'da [OPERATORE]', label: 'da [OPERATORE]', type: 'name' },
+    // "... HH:MM:SS NOME COGNOME[da]" — nome SUBITO dopo l'orario, senza "da" davanti.
+    // Il suffisso "da" attaccato (es. "Michelada") è un artefatto PDF.js (frammento di "Data").
+    { pattern: /(\d{1,2}[:\.]\d{2}[:\.]\d{2})\s+[A-ZÀ-Ü][a-zà-ü'\-]+\s+[A-ZÀ-Ü][a-zà-ü'\-]+(?:da)?(?=\s*$|\s*\n)/gm,
+      replace: (m, ora) => ora + ' [OPERATORE]', label: '[OPERATORE]', type: 'name' },
     { pattern: /Il\s+referto\s+è\s+conservato\s+secondo\s+la\s+normativa[^\n]*/gi,
       label: '[CONSERVAZIONE]', type: 'boiler' },
     { pattern: /Copia\s+di\s+(?:documento|referto)\s+firmato\s+e\s+conservato[^\n]*/gi,
       label: '[CONSERVAZIONE]', type: 'boiler' },
     { pattern: /Rappresentazione\s+di\s+un\s+referto\s+firmato\s+elettronicamente[^\n]*/gi,
       label: '[CONSERVAZIONE]', type: 'boiler' },
-    // Metadati documento: "Data creazione/ultima modifica DD/MM/YYYY HH:MM:SS [da OPERATORE]"
-    { pattern: /Data\s+(?:di\s+)?(?:creazione|(?:ultima\s+)?modifica)\s+\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}(?:\s+\d{1,2}[:\.]\d{2}(?:[:\.]\d{2})?)?(?:\s+da\s+\[OPERATORE\])?/gi,
+    // Metadati documento: "Data creazione/ultima modifica DD/MM/YYYY HH:MM:SS [NOME|da OPERATORE]"
+    { pattern: /Data\s+(?:di\s+)?(?:creazione|(?:ultima\s+)?modifica)\s+\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}(?:\s+\d{1,2}[:\.]\d{2}(?:[:\.]\d{2})?)?(?:\s+(?:da\s+)?\[OPERATORE\])?/gi,
       label: '[METADATO]', type: 'boiler' },
     { pattern: /Pag(?:ina)?\.?\s*\d+\s*(?:di|\/)\s*\d+/gi,
       label: '[PAGINA]', type: 'boiler' },
@@ -922,9 +927,9 @@ const ANON_CONFIG = {
     { pattern: /Al\s+Medico\s+Curante\s*:\s*\S+\s+\S+/gi,
       label: 'Al Medico Curante: [PAZIENTE]', type: 'name' },
     { pattern: /Provenienza\s*:\s*[^\n]+/gi, label: '[PROVENIENZA]', type: 'boiler' },
-    { pattern: /Medico\s+[Rr]ichiedente\s*:\s*(?:\[(?:NOME|PAZIENTE|OPERATORE)\]|[A-Z][a-z\u00C0-\u00FF][a-zA-Z\u00C0-\u00FF]*|[A-Z]{2,})(?:\s+(?:\[(?:NOME|PAZIENTE|OPERATORE)\]|[A-Z][a-zA-Z\u00C0-\u00FF]+|[A-Z]{2,}))*/g,
+    { pattern: /Medico\s+[Rr]ichiedente\s*:[ \t]*(?:\[(?:NOME|PAZIENTE|OPERATORE)\]|[A-Z][a-z\u00C0-\u00FF][a-zA-Z\u00C0-\u00FF]*|[A-Z]{2,})(?:[ \t]+(?:\[(?:NOME|PAZIENTE|OPERATORE)\]|[A-Z][a-zA-Z\u00C0-\u00FF]+|[A-Z]{2,})){0,2}/g,
       label: 'Medico richiedente: [OPERATORE]', type: 'name' },
-    { pattern: /Medico\s+[Rr]efertante\s*:\s*[A-Z][a-z\u00C0-\u00FF][a-zA-Z\u00C0-\u00FF]*(?:\s+[A-Z][a-zA-Z\u00C0-\u00FF]+)*/g,
+    { pattern: /Medico\s+[Rr]efertante\s*:[ \t]*[A-Z][a-z\u00C0-\u00FF][a-zA-Z\u00C0-\u00FF]*(?:[ \t]+[A-Z][a-zA-Z\u00C0-\u00FF]+){0,2}/g,
       label: 'Medico refertante: [OPERATORE]', type: 'name' },
     { pattern: /Refertato\s+da\s*:\s*(?:(?:[Dd][Oo][Tt]{2}\.(?:[Ss][Ss][Aa]\.?)?|[Dd][Rr]\.(?:[Ss][Ss][Aa]\.?)?)\s+)?[A-Z][a-z\u00C0-\u00FF][a-zA-Z\u00C0-\u00FF]*(?:\s+[A-Z][a-zA-Z\u00C0-\u00FF]+)*/g,
       label: 'Refertato da: [OPERATORE]', type: 'name' },
@@ -1823,11 +1828,17 @@ function applyNameDict(text) {
 }
 
 /* ── Stato dizionario nomi (fuzzy, opzionale) ── */
+// ── Dizionario nomi: DISATTIVATO ──
+// nameDict_fallback è vuoto e il dizionario esterno non viene caricato.
+// L'anonimizzazione NON dipende dal dizionario: si affida interamente ai
+// pattern regex strutturali + Stage 0.5 (nome paziente dal frontespizio) +
+// GLOBAL SWEEP (nomi paziente e medici). applyNameDict/BKTree restano nel
+// codice come infrastruttura inerte (riattivabile) ma non vengono mai eseguiti.
 const NAMES_DB = { firstNames:[], surnames:[], loaded:false };
 let bkSurnames = new BKTree(), bkFirstNames = new BKTree();
 function loadNameDictionaryLocal(){
   const fb = ANON_CONFIG.nameDict_fallback || [];
-  if (!fb.length) { NAMES_DB.loaded = false; return; }
+  if (!fb.length) { NAMES_DB.loaded = false; return; }   // ← caso attuale: esce subito
   fb.forEach(n => { bkSurnames.add(n.toLowerCase()); bkFirstNames.add(n.toLowerCase()); });
   NAMES_DB.surnames = fb.map(n => n.toLowerCase());
   NAMES_DB.firstNames = fb.map(n => n.toLowerCase());
@@ -2165,10 +2176,12 @@ function anonymizeText(rawText){
     const res2 = applyNameDict(res.text);
     finalText = restore(res2.text);
     reps = [...pdReps, ...res.reps, ...res2.reps];
+  }
 
-    // ── GLOBAL SWEEP ──
-    // Ogni nome rilevato viene sostituito in TUTTE le sue occorrenze per coerenza.
-    // Salta parole cliniche comuni che potrebbero essere finite in un match più ampio.
+  // ── GLOBAL SWEEP (sempre attivo, anche senza dizionario nomi) ──
+  // Ogni nome rilevato viene sostituito in TUTTE le sue occorrenze per coerenza.
+  // Salta parole cliniche comuni che potrebbero essere finite in un match più ampio.
+  {
     const SWEEP_SKIP = new Set([
       'alla','alle','allo','agli','della','delle','dello','degli',
       'nella','nelle','nello','negli','sulla','sulle','sullo','sugli',
@@ -2191,6 +2204,8 @@ function anonymizeText(rawText){
       'monitorata','posturato','presenta',
       'nutrison','peptamen','isolyte','ensure','fresubin',
       'cubitan','fortimel','prosure','abound','resource','glucerna',
+      'forte','bianca','bianchi','sereno','sereni','rossa','rosso',
+      'destra','sinistra','marcia','sordita','sordo','sorda',
     ]);
     const sweepReps = [...reps].sort((a,b) => b.orig.length - a.orig.length);
     for (const r of sweepReps) {
@@ -2201,6 +2216,52 @@ function anonymizeText(rawText){
         finalText = finalText.replace(new RegExp(esc, 'g'), r.repl);
       } catch(e) {}
     }
+
+    // ── SWEEP FINALE NOMI MEDICI/OPERATORI (nome + cognome) ──
+    // Per ogni nome identificato come [OPERATORE], estrae le singole parole-nome
+    // (sia il NOME di battesimo sia il COGNOME) e le rimuove in tutto il testo,
+    // per catturare ricomparse dello stesso medico senza titolo
+    // (es. "Loteno" o "Marco" da soli dopo "Dott. Marco Loteno").
+    // Veloce: opera su poche decine di nomi già raccolti, replace su testo di pochi KB.
+    const operatorNames = new Set();
+    for (const r of reps) {
+      if (r.type !== 'Nome') continue;
+      if (!/OPERATORE/.test(r.repl)) continue;
+      // Estraggo le parole-nome dall'originale (scarto titoli, "da", date, label, parole funzionali)
+      const cleaned = r.orig
+        .replace(/\b(?:[Dd]ott?\.?(?:\.?ss?a\.?)?|[Dd]r\.?(?:\.?ss?a\.?)?|[Dd]\.?ss?a\.?|[Oo]tt\.?(?:\.?ss?a\.?)?|[Pp]r?of\.?(?:ss?a\.?)?|[Pp]orf\.?|[Mm]ed\.?)\b/g, ' ')
+        .replace(/\b(?:da|il|la|lo|di|del|dei|e|ed)\b/gi, ' ')
+        .replace(/\b(?:Firmat[oa]|Refertat[oa]|Sottoscritto|Validato|Redatto|Compilato|Ora|Data|Medico|richiedente|refertante)\b/gi, ' ')
+        .replace(/\d|[:\.\/\-]/g, ' ')
+        .replace(/\[[^\]]*\]/g, ' ');
+      cleaned.split(/\s+/).forEach(w => {
+        const word = w.trim();
+        // Parole alfabetiche di almeno 3 lettere. Per il sweep medici uso un filtro
+        // RIDOTTO (solo parole funzionali/strutturali), NON l'intero SWEEP_SKIP: i
+        // cognomi che coincidono con termini clinici (Bianchi, Forte) sono comunque
+        // protetti perché lo sweep è case-sensitive sulla maiuscola (vedi sotto).
+        const FUNC_SKIP = new Set(['del','dei','della','delle','dello','degli','con','per','tra','fra','sul','sui','non','che','più','già','ore','data','nome','firma','medico','medici','reparto','clinica','paziente']);
+        if (word.length >= 3 && /^[A-Za-zÀ-ü'\-]+$/.test(word) && !FUNC_SKIP.has(word.toLowerCase()))
+          operatorNames.add(word);
+      });
+    }
+    // Spazzo i nomi degli operatori. PRUDENZA: case-sensitive sull'iniziale maiuscola.
+    // I nomi/cognomi dei medici compaiono con la maiuscola; i termini clinici che
+    // potrebbero coincidere compaiono minuscoli nel testo e NON vengono toccati.
+    for (const name of operatorNames) {
+      try {
+        const cap = name.charAt(0).toUpperCase() + name.slice(1);
+        const capEsc = cap.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        finalText = finalText.replace(new RegExp('\\b' + capEsc + '\\b', 'g'), '[OPERATORE]');
+        // Versione tutta maiuscola (frontespizi): COGNOME / NOME
+        if (name.length >= 3) {
+          const upEsc = name.toUpperCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          if (upEsc !== capEsc) finalText = finalText.replace(new RegExp('\\b' + upEsc + '\\b', 'g'), '[OPERATORE]');
+        }
+      } catch(e) {}
+    }
+    // Compatta eventuali "[OPERATORE] [OPERATORE]" consecutivi nati dal sweep
+    finalText = finalText.replace(/(?:\[OPERATORE\]\s*){2,}/g, '[OPERATORE] ');
   }
 
   return { text: finalText, substitutions: reps, strippedBlocks, patientData };
