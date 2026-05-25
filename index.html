@@ -1949,13 +1949,16 @@ function _onHistoryPush() {
 function _onHistoryPop(histState) {
   // Chiamato da popstate. Lo state contiene { pos } messo in pushState.
   // Le entry "guardia" hanno pos uguale alla pagina che proteggono: le ignoro per il pos.
-  if (histState && typeof histState.pos === 'number' && !histState.guard) {
+  if (histState && typeof histState.pos === 'number') {
     _historyPos = histState.pos;
-  } else if (histState && histState.guard && typeof histState.pos === 'number') {
-    _historyPos = histState.pos;
+  } else {
+    // La PRIMA entry caricata all'avvio dell'app non ha uno state con `pos` (è `null`,
+    // creata dal browser, non dal nostro pushState). Quando ci torniamo, popstate riceve
+    // histState null: significa che siamo tornati alla pagina iniziale → pos 0.
+    // NB: NON tocco _historyMax, così la freccia "avanti" resta disponibile.
+    _historyPos = 0;
   }
-  // Clamp difensivo: _historyPos resta sempre nel range [0, _historyMax] così i pulsanti
-  // freccia non si bloccano mai per disallineamenti dovuti alle entry guardia.
+  // Clamp difensivo: _historyPos resta sempre nel range [0, _historyMax].
   if (_historyPos < 0) _historyPos = 0;
   if (_historyPos > _historyMax) _historyMax = _historyPos;
   updateNavHistoryButtons();
@@ -4432,7 +4435,17 @@ const urlRouter = (function() {
     _onHistoryPop(e.state);
     const { route, params, blockHash } = readUrl();
     if (blockHash) state.pendingBlockHash = blockHash;
-    navigate(route, params);
+    // fromHistory=true: la navigazione è scatenata dal back/forward del browser, quindi
+    // l'URL è GIÀ quello corretto. navigate NON deve fare un nuovo pushState (che
+    // resetterebbe _historyMax e romperebbe la freccia avanti, specie tornando alla
+    // prima pagina con hash vuoto).
+    navigate(route, params, { fromHistory: true });
+    // navigate(fromHistory) non passa per _onHistoryPush, quindi la guardia non si è
+    // riarmata. Se siamo atterrati in zona protetta (es. home in PWA), riarmo qui.
+    if (!_backGuardArmed) {
+      const ctx = shouldGuardBack();
+      if (ctx.active) armBackGuard(ctx.silent);
+    }
   }
 
   function init() {
@@ -4443,7 +4456,7 @@ const urlRouter = (function() {
   return { buildHash, updateUrl, readUrl, init };
 })();
 
-function navigate(route, params = {}) {
+function navigate(route, params = {}, navOpts = {}) {
   if (state.editingContext && state.editingContext.isDirty) {
     if (!confirm("Hai modifiche non salvate. Sicuro di uscire dall'editor?")) return;
   }
@@ -4476,7 +4489,9 @@ function navigate(route, params = {}) {
   // Sincronizza l'URL del browser per supportare bookmark, refresh, bottone indietro,
   // condivisione link, deep-link da NotebookLM/altre app. Aggiorna anche il contatore
   // di posizione history per i pulsanti freccia interni.
-  if (typeof urlRouter !== 'undefined') urlRouter.updateUrl(route, params);
+  // Se la navigazione viene dal back/forward del browser (fromHistory), l'URL è già
+  // corretto: NON faccio un nuovo pushState (eviterei di resettare _historyMax).
+  if (typeof urlRouter !== 'undefined' && !(navOpts && navOpts.fromHistory)) urlRouter.updateUrl(route, params);
   if (route !== 'search') $('global-search').value = '';
 
   switch (route) {
@@ -7572,7 +7587,7 @@ function renderCustomSezioniHtml() {
       // Opzione C: occhiello "UOC ridotta · Sezione" sopra, nome del contatto sotto.
       const eyebrow = [uocName, sezName].filter(Boolean).join(' · ');
       // Niente pulsante ✕: la rimozione si fa dal menu della stella.
-      return renderContattoCard(c, { eyebrow: eyebrow || null, showStarInEdit: true });
+      return renderContattoCard(c, { eyebrow: eyebrow || null, showStarInEdit: true, preferBreve: true });
     }).join('') || '<div style="padding:8px 14px;font-size:12px;color:var(--ink-muted);font-style:italic;">Nessun contatto in questa sezione. Usa la ☆ su un contatto per aggiungerlo qui.</div>';
     return `<div class="pinned-uoc-block" data-cs-id="${escapeHtml(sez.id)}">
       <div class="pinned-uoc-header">
@@ -8466,10 +8481,16 @@ function renderContattoCard(c, opts = {}) {
   const eyebrowHtml = opts.eyebrow
     ? `<div style="font-size:11px;color:var(--ink-muted);line-height:1.2;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(opts.eyebrow)}</div>`
     : '';
+  // Nome breve: se il contatto ha un "nome breve" (primo alias) e siamo in un contesto
+  // dove lo spazio è poco (preferiti), lo mostro al posto dell'etichetta completa.
+  // L'etichetta intera resta nel tooltip (title).
+  const nomeBreve = (c.alias && c.alias.length && c.alias[0]) ? String(c.alias[0]).trim() : '';
+  const displayName = (opts.preferBreve && nomeBreve) ? nomeBreve : c.etichetta;
+  const displayTitle = (opts.preferBreve && nomeBreve) ? ` title="${escapeHtml(c.etichetta)}"` : '';
   return `<div class="${rowCls}" onclick="goToContatto('${escapeJs(c.id)}')">
     <div class="sr-contact-left">
       ${eyebrowHtml}
-      <div class="sr-contact-label">${inlinePrefix}${escapeHtml(c.etichetta)}${star}${removeBtn}</div>
+      <div class="sr-contact-label"${displayTitle}>${inlinePrefix}${escapeHtml(displayName)}${star}${removeBtn}</div>
       ${ctxHtml}
     </div>
     <div class="sr-contact-nums">${numChipsHtml}</div>
@@ -8502,7 +8523,8 @@ function renderContattiGroupedBox(items, opts = {}) {
       // In modalità inline (sezione UOC standard): l'UOC è nel titolo del box, la sezione
       // del contatto è l'occhiello sopra l'etichetta.
       eyebrow: opts.inline ? ((c.sezione || '').trim() || null) : null,
-      showStarInEdit: !!opts.starInEdit
+      showStarInEdit: !!opts.starInEdit,
+      preferBreve: !!opts.inline
     })).join('');
     return `<div class="sr-sede-bucket" style="margin-bottom:10px;">
       <div class="sr-sede-bucket-header sr-sede-bucket-static">
@@ -15208,8 +15230,9 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
   const cellularePersonaleStr = Array.isArray(c.cellulare_personale) ? c.cellulare_personale.join(', ') : (c.cellulare_personale || '');
   const cellulareAziendaleStr = Array.isArray(c.cellulare_aziendale) ? c.cellulare_aziendale.join(', ') : (c.cellulare_aziendale || '');
   const tagStr = (c.tag || []).join(', ');
-  // Raccolgo tutti i tag già usati nei contatti (di tutte le sorgenti) per la lista di scelta
-  const allTagsSet = new Set();
+  // Raccolgo tutti i tag già usati nei contatti (di tutte le sorgenti) per la lista di scelta,
+  // più alcuni suggerimenti fissi utili.
+  const allTagsSet = new Set(['prenotazioni', 'ambulatorio', 'consulente']);
   (state.index?.numeri?.gruppi || []).forEach(g => (g.contatti || []).forEach(ct => (ct.tag || []).forEach(t => { if (t) allTagsSet.add(t); })));
   const allTagsOptions = [...allTagsSet].sort((a, b) => a.localeCompare(b)).map(t => `<option value="${escapeHtml(t)}">`).join('');
   const body = `
@@ -15219,8 +15242,8 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
         <input type="text" id="ce-etichetta" value="${escapeHtml(c.etichetta || '')}" placeholder="es. Medico di Guardia" required>
       </div>
       <div class="field">
-        <label>Alias <span style="font-weight:normal;color:var(--ink-muted);">(nomi alternativi per la ricerca, separati da virgola)</span></label>
-        <input type="text" id="ce-alias" value="${escapeHtml((c.alias || []).join(', '))}" placeholder="es. centralino, portineria">
+        <label>Nome breve <span style="font-weight:normal;color:var(--ink-muted);">(per la ricerca e mostrato quando lo spazio è poco, es. su mobile e nei preferiti)</span></label>
+        <input type="text" id="ce-alias" value="${escapeHtml((c.alias || []).join(', '))}" placeholder="es. Guardia neuro, Stroke">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div class="field">
@@ -15344,9 +15367,8 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
       </div>
       <div class="field">
         <label>Tag <span style="font-weight:normal;color:var(--ink-muted);">(per la ricerca — scegli dai suggerimenti o aggiungine di nuovi, separati da virgola)</span></label>
-        <input type="text" id="ce-tag" value="${escapeHtml(tagStr)}" list="ce-tag-list" placeholder="es. guardia, guardiola, urgenze">
+        <input type="text" id="ce-tag" value="${escapeHtml(tagStr)}" list="ce-tag-list" placeholder="es. prenotazioni, ambulatorio, consulente">
         <datalist id="ce-tag-list">${allTagsOptions}</datalist>
-        ${allTagsSet.size ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${[...allTagsSet].sort((a,b)=>a.localeCompare(b)).map(t => `<button type="button" class="kind-chip" style="font-size:11px;padding:2px 8px;" onclick="(function(){const i=document.getElementById('ce-tag');const cur=i.value.split(',').map(s=>s.trim()).filter(Boolean);if(!cur.includes('${escapeJs(t)}')){cur.push('${escapeJs(t)}');i.value=cur.join(', ');}})()">+ ${escapeHtml(t)}</button>`).join('')}</div>` : ''}
       </div>
       <div class="field">
         <label>Note</label>
@@ -17161,6 +17183,21 @@ function initTopbarMeasure() {
   window.addEventListener('orientationchange', () => setTimeout(measureTopbar, 100));
   // Doppio rAF per essere certi che fonts/layout siano stabili
   requestAnimationFrame(() => requestAnimationFrame(measureTopbar));
+  // Mobile: al primo avvio l'altezza reale della topbar può cambiare DOPO il primo render
+  // (safe-area del notch applicata in ritardo, font non ancora caricati, barra indirizzi
+  // del browser che si ritrae). Senza ri-misurare, l'app-body resta con padding-top errato
+  // e il contenuto appare coperto di ~20px sotto la topbar. Rimisuro a più riprese.
+  [120, 350, 700, 1500].forEach(ms => setTimeout(measureTopbar, ms));
+  // Ri-misuro al caricamento completo (immagini/risorse) e quando i font sono pronti.
+  window.addEventListener('load', () => setTimeout(measureTopbar, 50));
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => measureTopbar());
+  }
+  // Su mobile la viewport può cambiare quando la barra indirizzi del browser scorre via:
+  // ascolto i resize del visualViewport per riallineare.
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', measureTopbar);
+  }
 }
 
 function initWindowResize() {
