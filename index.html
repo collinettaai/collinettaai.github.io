@@ -4449,6 +4449,18 @@ const urlRouter = (function() {
   }
 
   function init() {
+    // All'avvio (o dopo un reload/riapertura PWA) il browser può aver conservato uno
+    // history.state di una sessione precedente con un `pos` alto (es. 5), mentre le
+    // variabili JS _historyPos/_historyMax ripartono da 0. Questo disallineamento rompe
+    // le frecce avanti/indietro (la "prima pagina" risulta già in cima allo stack → forward
+    // disabilitato). Normalizzo: la pagina corrente diventa la base pos 0 dello stack logico.
+    try {
+      const cur = readUrl();
+      window.history.replaceState({ route: cur.route, params: cur.params, pos: 0 }, '', window.location.href);
+    } catch {}
+    _historyPos = 0;
+    _historyMax = 0;
+    updateNavHistoryButtons();
     window.addEventListener('hashchange', _onHashChange);
     window.addEventListener('popstate', _onPopState);
   }
