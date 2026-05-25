@@ -7556,10 +7556,10 @@ function renderCustomSezioniHtml() {
       const g = (c._gruppo) ? c._gruppo : '';
       const sezName = (c.sezione || '').trim();
       const uocName = g ? stripPrefixNome(g) : '';
-      // Nelle sezioni personalizzate il prefisso inline è "UOC ridotta · Sezione"
-      const prefix = [uocName, sezName].filter(Boolean).join(' · ');
+      // Opzione C: occhiello "UOC ridotta · Sezione" sopra, nome del contatto sotto.
+      const eyebrow = [uocName, sezName].filter(Boolean).join(' · ');
       // Niente pulsante ✕: la rimozione si fa dal menu della stella.
-      return renderContattoCard(c, { inlinePrefix: prefix || null, showStarInEdit: true });
+      return renderContattoCard(c, { eyebrow: eyebrow || null, showStarInEdit: true });
     }).join('') || '<div style="padding:8px 14px;font-size:12px;color:var(--ink-muted);font-style:italic;">Nessun contatto in questa sezione. Usa la ☆ su un contatto per aggiungerlo qui.</div>';
     return `<div class="pinned-uoc-block" data-cs-id="${escapeHtml(sez.id)}">
       <div class="pinned-uoc-header">
@@ -8007,7 +8007,7 @@ function renderNumeri(filter, targetContainer) {
       if (filter === 'guardia') {
         const items = [];
         list.forEach(g => (g.contatti || []).forEach(c => items.push({ c, g })));
-        return renderContattiGroupedBox(items);
+        return renderUocSezioniBox(items);
       }
       // Vista preferiti (★): contatti inline "Sezione · etichetta", stella in edit-mode
       if (filter === 'pinned' && src === 'aopd') {
@@ -8445,13 +8445,17 @@ function renderContattoCard(c, opts = {}) {
   const star = opts.showStarInEdit && c.id ? ` <span class="edit-only" style="display:inline-flex;align-items:center;">${renderPinButton('contatto', c.id)}</span>` : '';
   // Pulsante rimuovi opzionale (sezioni custom in edit-mode)
   const removeBtn = opts.removeBtn || '';
-  // Prefisso inline nell'etichetta (es. "Sezione · " o "UOC · Sezione · ") mostrato
-  // prima del nome del contatto, in grigio, sulla stessa riga.
+  // Prefisso inline nell'etichetta (in grigio, sulla stessa riga del nome).
   const inlinePrefix = opts.inlinePrefix
     ? `<span style="color:var(--ink-muted);font-weight:400;">${escapeHtml(opts.inlinePrefix)} · </span>`
     : '';
+  // Occhiello: riga piccola SOPRA l'etichetta (es. "UOC · Sezione" o solo "Sezione").
+  const eyebrowHtml = opts.eyebrow
+    ? `<div style="font-size:11px;color:var(--ink-muted);line-height:1.2;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(opts.eyebrow)}</div>`
+    : '';
   return `<div class="${rowCls}" onclick="navigate('numeri', {filter:'${escapeJs(c.id)}'})">
     <div class="sr-contact-left">
+      ${eyebrowHtml}
       <div class="sr-contact-label">${inlinePrefix}${escapeHtml(c.etichetta)}${star}${removeBtn}</div>
       ${ctxHtml}
     </div>
@@ -8465,22 +8469,15 @@ function renderContattoCard(c, opts = {}) {
 // opts.inline: niente box-titolo; ogni contatto mostra inline "Sezione · etichetta" (preferiti).
 function renderContattiGroupedBox(items, opts = {}) {
   if (!items.length) return '';
-  if (opts.inline) {
-    // Lista piatta: ogni contatto con prefisso inline "Sezione · etichetta"
-    return `<div class="sr-sede-bucket" style="margin-bottom:10px;"><div class="sr-sede-bucket-contatti">${
-      items.map(({ c }) => renderContattoCard(c, {
-        inlinePrefix: (c.sezione || '').trim() || null,
-        showStarInEdit: !!opts.starInEdit
-      })).join('')
-    }</div></div>`;
-  }
   const groups = [];
   const byKey = {};
+  // In modalità inline raggruppo solo per UOC (l'UOC fa da titolo del box), e dentro ogni
+  // contatto mostro la sezione come occhiello sopra l'etichetta. Altrimenti UOC+sezione.
   items.forEach(({ c, g }) => {
     const sez = (c.sezione || '').trim();
-    const key = g.id + '||' + sez;
+    const key = opts.inline ? g.id : (g.id + '||' + sez);
     if (!byKey[key]) {
-      byKey[key] = { gNome: stripPrefixNome(g.nome), sezione: sez, gId: g.id, contatti: [] };
+      byKey[key] = { gNome: stripPrefixNome(g.nome), sezione: opts.inline ? '' : sez, gId: g.id, contatti: [] };
       groups.push(byKey[key]);
     }
     byKey[key].contatti.push({ c, g });
@@ -8488,12 +8485,58 @@ function renderContattiGroupedBox(items, opts = {}) {
   return groups.map(grp => {
     const titleUoc = `<span class="ctx-uoc" onclick="event.stopPropagation();navigate('numeri',{filter:'${escapeJs(grp.gId)}'})">${escapeHtml(grp.gNome)}</span>`;
     const titleSez = grp.sezione ? `<span class="sede-bucket-sep"> · </span><span class="ctx-sezione">${escapeHtml(grp.sezione)}</span>` : '';
-    const rows = grp.contatti.map(({ c }) => renderContattoCard(c, { showStarInEdit: !!opts.starInEdit })).join('');
+    const rows = grp.contatti.map(({ c }) => renderContattoCard(c, {
+      // In modalità inline (sezione UOC standard): l'UOC è nel titolo del box, la sezione
+      // del contatto è l'occhiello sopra l'etichetta.
+      eyebrow: opts.inline ? ((c.sezione || '').trim() || null) : null,
+      showStarInEdit: !!opts.starInEdit
+    })).join('');
     return `<div class="sr-sede-bucket" style="margin-bottom:10px;">
       <div class="sr-sede-bucket-header sr-sede-bucket-static">
         <span class="sede-bucket-tipo">${titleUoc}${titleSez}</span>
       </div>
       <div class="sr-sede-bucket-contatti">${rows}</div>
+    </div>`;
+  }).join('');
+}
+
+// Rende i contatti raggruppati come nella vista UOC della ricerca globale:
+// gerarchia a 2 livelli — titolo UOC in alto, poi box sezione (sr-sede-bucket) con i
+// relativi contatti sotto. Usato per la MdG della rubrica.
+function renderUocSezioniBox(items, opts = {}) {
+  if (!items.length) return '';
+  // Raggruppo per UOC, poi per sezione dentro ciascuna UOC
+  const uocs = [];
+  const byUoc = {};
+  items.forEach(({ c, g }) => {
+    if (!byUoc[g.id]) {
+      byUoc[g.id] = { gId: g.id, gNome: shortenUocName(g) || stripPrefixNome(g.nome), sezioni: [], _sezByKey: {} };
+      uocs.push(byUoc[g.id]);
+    }
+    const sez = (c.sezione || '').trim();
+    const u = byUoc[g.id];
+    if (!u._sezByKey[sez]) {
+      u._sezByKey[sez] = { sezione: sez, contatti: [] };
+      u.sezioni.push(u._sezByKey[sez]);
+    }
+    u._sezByKey[sez].contatti.push(c);
+  });
+  return uocs.map(u => {
+    const sezioniHtml = u.sezioni.map(s => {
+      const sezLabel = s.sezione
+        ? `<span class="ctx-sezione" onclick="event.stopPropagation();navigate('numeri',{filter:'${escapeJs(u.gId)}'})">${escapeHtml(s.sezione)}</span>`
+        : `<span class="ctx-sezione">Numeri</span>`;
+      const rows = s.contatti.map(c => renderContattoCard(c, { showStarInEdit: !!opts.starInEdit })).join('');
+      return `<div class="sr-sede-bucket">
+        <div class="sr-sede-bucket-header sr-sede-bucket-static">
+          <span class="sede-bucket-tipo">${sezLabel}</span>
+        </div>
+        <div class="sr-sede-bucket-contatti">${rows}</div>
+      </div>`;
+    }).join('');
+    return `<div class="sr-uoc" style="margin-bottom:14px;">
+      <div class="sr-uoc-title" style="cursor:pointer;" onclick="navigate('numeri',{filter:'${escapeJs(u.gId)}'})">${escapeHtml(u.gNome)}</div>
+      <div class="sr-uoc-contatti">${sezioniHtml}</div>
     </div>`;
   }).join('');
 }
