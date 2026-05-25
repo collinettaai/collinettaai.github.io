@@ -2948,6 +2948,136 @@ function buildShareUrl(route, params, blockId) {
   return window.location.origin + window.location.pathname + hash;
 }
 
+/* ============================ EXPORT INDICE (NotebookLM) ============================
+   Genera un file Markdown con TUTTO il contenuto indicizzato (schede + ogni blocco,
+   contatti rubrica, moduli, pagine) e, accanto a ciascuna voce, il link diretto.
+   Pensato per essere caricato in un'AI esterna (NotebookLM, ecc.): l'accostamento
+   contenuto+URL nella stessa porzione permette all'AI di restituire il link corretto.
+   Admin-only. Riusa buildShareUrl per URL assoluti coerenti col routing dell'app. */
+function exportContentIndex() {
+  if (typeof isAdmin === 'function' && !isAdmin()) { if (typeof toast === 'function') toast('Solo admin', 'error'); return; }
+  if (typeof buildShareUrl !== 'function' || !state || !state.index) { if (typeof toast === 'function') toast('Indice non ancora caricato', 'error'); return; }
+  const idx = state.index;
+  const lines = [];
+  const now = new Date().toISOString().slice(0, 10);
+
+  const blkLabel = (b) => {
+    if (!b) return '?';
+    if (b.titolo) return b.titolo;
+    if (b.caption) return b.caption;
+    const map = { text: 'Testo', list: 'Elenco', checklist: 'Checklist', callout: 'Avviso', table: 'Tabella', image: 'Immagine', system_code: 'Codici sistema', link: 'Link', form_ref: 'Modulo', internal_ref: 'Riferimento', clinical_note: 'Nota clinica' };
+    return map[b.tipo] || b.tipo || '?';
+  };
+  const blkText = (b) => {
+    if (!b || !b.tipo) return '';
+    const p = [];
+    if (b.titolo) p.push(b.titolo);
+    switch (b.tipo) {
+      case 'text': case 'clinical_note': if (b.testo) p.push(b.testo); break;
+      case 'list': case 'checklist': if (Array.isArray(b.items)) p.push(b.items.join(' · ')); break;
+      case 'callout': p.push('[' + (b.variante || 'info') + ']'); if (b.testo) p.push(b.testo); break;
+      case 'table':
+        if (Array.isArray(b.headers)) p.push(b.headers.join(' | '));
+        if (Array.isArray(b.rows)) b.rows.forEach((r) => p.push((Array.isArray(r) ? r : [r]).join(' | ')));
+        break;
+      case 'system_code':
+        if (b.sistema) p.push(b.sistema);
+        if (b.percorso) p.push(b.percorso);
+        if (Array.isArray(b.codici)) p.push(b.codici.map((c) => ((c.codice || '') + ' ' + (c.descrizione || '')).trim()).filter(Boolean).join(', '));
+        if (b.note) p.push(b.note);
+        break;
+      case 'link': if (b.url) p.push(b.url); if (b.fonte) p.push(b.fonte); break;
+      case 'image': if (b.caption) p.push(b.caption); if (b.descrizione) p.push(b.descrizione); break;
+      default: break;
+    }
+    return p.filter(Boolean).join(' — ');
+  };
+  const emitScheda = (s, route) => {
+    if (!s || !s.slug) return;
+    const cat = [s.categoria, s.sottocategoria].filter(Boolean).join(' · ');
+    lines.push('## ' + (s.titolo || s.slug) + (cat ? '  (' + cat + ')' : ''));
+    const meta = [];
+    if (Array.isArray(s.tag) && s.tag.length) meta.push('tag: ' + s.tag.join(', '));
+    if (Array.isArray(s.termini_equivalenti) && s.termini_equivalenti.length) meta.push('anche detto: ' + s.termini_equivalenti.join(', '));
+    if (meta.length) lines.push(meta.join(' — '));
+    if (s.sintesi) lines.push(s.sintesi);
+    lines.push(buildShareUrl(route, { slug: s.slug }));
+    lines.push('');
+    (Array.isArray(s.contenuti) ? s.contenuti : []).forEach((b, i) => {
+      lines.push('### ' + (s.titolo || s.slug) + ' › ' + blkLabel(b) + ' (' + ((b && b.tipo) || '?') + ')');
+      const txt = blkText(b);
+      if (txt) lines.push(txt);
+      lines.push(buildShareUrl(route, { slug: s.slug }, 'bl-' + s.slug + '-' + i));
+      lines.push('');
+    });
+  };
+
+  lines.push('# Contenuto completo CollinettaAI');
+  lines.push('Generato il ' + now + '. Ogni voce riporta il contenuto integrale e, sotto, il link diretto da aprire nell\u2019app.');
+  lines.push('');
+  lines.push('---', '# Procedure', '');
+  (idx.procedure || []).forEach((s) => emitScheda(s, 'procedura'));
+  lines.push('---', '# Schede cliniche', '');
+  (idx.clinica || []).forEach((s) => emitScheda(s, 'clinica-scheda'));
+
+  lines.push('---', '# Rubrica (contatti)', '');
+  const groups = [];
+  if (idx.numeri && idx.numeri.gruppi) groups.push(...idx.numeri.gruppi);
+  const ext = idx.numeriExtended || {};
+  if (ext.osa && ext.osa.gruppi) groups.push(...ext.osa.gruppi);
+  if (ext.iov && ext.iov.gruppi) groups.push(...ext.iov.gruppi);
+  groups.forEach((g) => {
+    (g.contatti || []).forEach((c) => {
+      if (!c || !c.id) return;
+      const sez = c.sezione ? ' · ' + c.sezione : '';
+      lines.push('## ' + (c.etichetta || c.id) + ' — ' + (g.nome || '') + sez);
+      const arr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+      const interni = (c.numeri || []).map(String).filter(Boolean);
+      const cellP = arr(c.cellulare_personale).map(String).filter(Boolean);
+      const cellA = arr(c.cellulare_aziendale).map(String).filter(Boolean);
+      if (interni.length) lines.push('interni: ' + interni.join(' · '));
+      if (cellP.length) lines.push('cell. personale: ' + cellP.join(' · '));
+      if (cellA.length) lines.push('cell. aziendale: ' + cellA.join(' · '));
+      if (c.breve) lines.push('breve: ' + (Array.isArray(c.breve) ? c.breve.join(' · ') : c.breve));
+      if (Array.isArray(c.tag) && c.tag.length) lines.push('tag: ' + c.tag.join(', '));
+      lines.push(buildShareUrl('numeri', { filter: c.id }));
+      lines.push('');
+    });
+  });
+
+  lines.push('---', '# Moduli compilabili', '');
+  (idx.moduli || []).forEach((m) => {
+    if (!m || !m.slug) return;
+    lines.push('## ' + (m.titolo || m.slug));
+    if (m.descrizione) lines.push(m.descrizione);
+    lines.push(buildShareUrl('modulo', { slug: m.slug }));
+    lines.push('');
+  });
+
+  lines.push('---', '# Pagine', '');
+  [['Home', 'home'], ['Reparto', 'reparto'], ['Rubrica', 'numeri'], ['Moduli', 'moduli'], ['Calendario', 'calendario'], ['Lettere di dimissione', 'lettere']].forEach((pg) => {
+    lines.push('## ' + pg[0]);
+    lines.push(buildShareUrl(pg[1], {}));
+    lines.push('');
+  });
+
+  const md = lines.join('\n');
+  try {
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'collinetta-contenuto-' + now + '.md';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    const nContatti = groups.reduce((n, g) => n + ((g.contatti || []).length), 0);
+    if (typeof toast === 'function') toast('Indice esportato: ' + (idx.procedure || []).length + ' procedure, ' + (idx.clinica || []).length + ' cliniche, ' + nContatti + ' contatti, ' + (idx.moduli || []).length + ' moduli', 'success', 5000);
+  } catch (e) {
+    if (typeof toast === 'function') toast('Export fallito: ' + e.message, 'error');
+  }
+}
+window.exportContentIndex = exportContentIndex;
+
 /* ============================ CRYPTO ============================ */
 function base64ToBuffer(base64) {
   const binary = atob(base64);
@@ -11939,6 +12069,7 @@ async function _confermaNuovoModulo() {
 /* ============================ VIEW — CALENDARIO ============================ */
 const CAL_CATEGORIES = {
   guardie:         { label: 'Guardie',            color: '#f07070' },
+  coguardie:       { label: 'Coguardie',          color: '#e8739e' },
   amb_divisionale: { label: 'Amb. divisionale',   color: '#ffa94d' },
   lezioni:         { label: 'Lezioni',            color: '#4a9b8e' },
   seminari:        { label: 'Seminari',           color: '#6ba4f5' },
@@ -12075,7 +12206,7 @@ function _calRefreshControls() {
     </button>
     <div class="cal-title">${monthLabel}</div>
     <button class="cal-nav-btn" onclick="calToday()" title="Oggi" aria-label="Oggi" style="width:auto;padding:0 10px;font-size:12px;font-family:var(--mono);">Oggi</button>
-    <button class="cal-nav-btn" onclick="openCalImportModal()" title="Importa guardie da testo" aria-label="Importa" style="width:auto;padding:0 10px;font-size:12px;font-family:var(--mono);">Importa</button>
+    <button class="cal-nav-btn" onclick="openCalImportModal()" title="Importa guardie/coguardie da testo" aria-label="Importa" style="width:auto;padding:0 10px;font-size:12px;font-family:var(--mono);">Importa</button>
   `;
 }
 
@@ -12653,6 +12784,7 @@ function parseGuardieText(text, defaultYear, defaultMonth /* 0-11 */) {
     // Detect section changes
     if (/ambulatorio\s+divisional/i.test(raw)) { section = 'amb_divisionale'; continue; }
     if (/guardie\s+notturne\s+osa/i.test(raw)) { section = 'guardie_osa'; continue; }
+    if (/coguardi/i.test(raw)) { section = 'coguardie'; continue; }
     if (/guardie?\s+specializzandi/i.test(raw) || /giorno\s+notte/i.test(raw)) { section = 'giorno-notte'; continue; }
 
     // Skip header row "GIORNO NOTTE", "MESE DI ..."
@@ -12735,6 +12867,12 @@ function parseGuardieText(text, defaultYear, defaultMonth /* 0-11 */) {
       if (tokens.length) {
         results.push({ data, categoria: 'guardie', titolo: 'Guardia notte OSA: ' + tokens.join(', '), descrizione: 'Sede: Ospedale Sant\'Antonio' });
       }
+    } else if (section === 'coguardie') {
+      // Nomi separati da " - " o " – " (con spazi): preserva cognomi multi-parola (es. "Dal Santo").
+      const names = rest.split(/\s+[-–]\s+/).map(s => s.trim()).filter(Boolean);
+      if (names.length) {
+        results.push({ data, categoria: 'coguardie', titolo: 'Coguardia: ' + names.join(', '), descrizione: '' });
+      }
     }
   }
   return { year, month, events: results };
@@ -12744,8 +12882,8 @@ function parseGuardieText(text, defaultYear, defaultMonth /* 0-11 */) {
 function openCalImportModal() {
   const c = state.calendarState;
   showModal({
-    title: 'Importa guardie',
-    subtitle: 'Incolla il testo del PDF (copiato/trascinato). Il parser crea una lista modificabile prima del salvataggio.',
+    title: 'Importa guardie / coguardie',
+    subtitle: 'Incolla il testo del PDF (guardie o coguardie). Il parser riconosce il tipo dall\u2019intestazione e crea una lista modificabile prima del salvataggio.',
     body: `
       <div style="min-width:min(560px,90vw);">
         <textarea id="cal-import-text" rows="10" style="width:100%;font-family:var(--mono);font-size:12px;" placeholder="CL. NEUROLOGICA – GUARDIE SPECIALIZZANDI – MESE DI MAGGIO 2026&#10;&#10;GIORNO  NOTTE&#10;Venerdi 01-mag Rossi-Bianchi Verdi&#10;..."></textarea>
@@ -13244,6 +13382,7 @@ function renderGestioneUtentiView() {
         <button class="btn" id="btn-add-user">+ Aggiungi utente</button>
         <button class="btn ghost" onclick="navigate('cestino-utenti')">Cestino utenti</button>
         <button class="btn ghost" onclick="navigate('attivita')">Attività recente</button>
+        <button class="btn ghost" onclick="exportContentIndex()">Esporta contenuto (NotebookLM)</button>
       </div>
     </div>
 
