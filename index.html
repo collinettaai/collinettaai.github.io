@@ -2775,6 +2775,14 @@ async function shareLink(url, title) {
    - Se siamo già nella UOC di quel contatto E nella sezione corrispondente è già visibile,
      mostra un mini-menu con azione "Condividi" (per evitare scroll inutile).
    - Altrimenti, naviga alla UOC con scroll al contatto (comportamento standard). */
+// Naviga a un contatto (dalla ricerca, home, preferiti, ecc.) assicurando che la sua
+// sezione si riapra anche se era stata collassata in una visita precedente.
+function goToContatto(cid) {
+  state._lastFilterContattoInit = null;
+  if (typeof _navigateOutOfRubricaSearch === 'function') _navigateOutOfRubricaSearch('numeri', { filter: cid });
+  else navigate('numeri', { filter: cid });
+}
+
 function handleContattoRowClick(contattoId, evt) {
   if (evt && (evt.target.closest('button,a,input,.kind-selector,.kind-chip'))) return;
   // Determina lo stato corrente: siamo dentro la stessa UOC del contatto?
@@ -2792,6 +2800,7 @@ function handleContattoRowClick(contattoId, evt) {
   }
   if (!ownerGroup) {
     // Fallback: comportamento standard
+    state._lastFilterContattoInit = null;
     _navigateOutOfRubricaSearch('numeri', { filter: contattoId });
     return;
   }
@@ -2803,6 +2812,10 @@ function handleContattoRowClick(contattoId, evt) {
     return;
   }
   // Comportamento standard: naviga alla UOC con scroll/expand sezione.
+  // Reset del marcatore: questa è un'apertura intenzionale del contatto (dalla ricerca o
+  // da un'altra vista), quindi la sua sezione va riaperta anche se in passato era stata
+  // collassata manualmente.
+  state._lastFilterContattoInit = null;
   // Reset rubricaSearch prima di navigare: vogliamo aprire la UOC overview pulita
   // (non la vista UOC con la query di ricerca ancora attiva) e scrollare al contatto.
   _navigateOutOfRubricaSearch('numeri', { filter: contattoId });
@@ -8453,7 +8466,7 @@ function renderContattoCard(c, opts = {}) {
   const eyebrowHtml = opts.eyebrow
     ? `<div style="font-size:11px;color:var(--ink-muted);line-height:1.2;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(opts.eyebrow)}</div>`
     : '';
-  return `<div class="${rowCls}" onclick="navigate('numeri', {filter:'${escapeJs(c.id)}'})">
+  return `<div class="${rowCls}" onclick="goToContatto('${escapeJs(c.id)}')">
     <div class="sr-contact-left">
       ${eyebrowHtml}
       <div class="sr-contact-label">${inlinePrefix}${escapeHtml(c.etichetta)}${star}${removeBtn}</div>
@@ -8668,7 +8681,7 @@ function renderPinnedContattiSection(allGroups) {
         : '';
       return `<div class="pinned-contatto-row" data-cid="${escapeHtml(c.id)}">
         ${editMode ? '<span class="drag-handle" title="Trascina">⋮⋮</span>' : '<span class="drag-handle-spacer"></span>'}
-        <span class="pinned-contatto-label" onclick="navigate('numeri', {filter:'${escapeJs(c.id)}'})">
+        <span class="pinned-contatto-label" onclick="goToContatto('${escapeJs(c.id)}')">
           <span>${escapeHtml(c.etichetta)}</span>
           <span class="pinned-contatto-num ${numCls}">${escapeHtml(dispNum || '—')}</span>
         </span>
@@ -16080,7 +16093,7 @@ function openSearchOverlay(query) {
   if (!overlay._searchClickBound) {
     overlay._searchClickBound = true;
     overlay.addEventListener('click', (e) => {
-      const link = e.target.closest('a, [onclick*="navigate"], [onclick*="openUocWithSede"], [data-search-result]');
+      const link = e.target.closest('a, [onclick*="navigate"], [onclick*="goToContatto"], [onclick*="openUocWithSede"], [data-search-result]');
       if (link) {
         setTimeout(() => { closeSearchOverlay(); }, 0);
       }
@@ -16506,7 +16519,7 @@ function renderSearchResults(query, targetId) {
       : `<span class="sr-num-chip ${numChipClass}">—</span>`;
 
     if (isGuardia) {
-      return `<div class="sr-contact sr-contact-guardia" onclick="navigate('numeri', {filter:'${escapeJs(c.id)}'})">
+      return `<div class="sr-contact sr-contact-guardia" onclick="goToContatto('${escapeJs(c.id)}')">
         <div class="sr-contact-left">
           <div class="sr-contact-label">${labelHtml}</div>
           ${luogoHtml}
@@ -16516,7 +16529,7 @@ function renderSearchResults(query, targetId) {
       </div>`;
     }
     if (isUtile) {
-      return `<div class="sr-contact sr-contact-utile" onclick="navigate('numeri', {filter:'${escapeJs(c.id)}'})">
+      return `<div class="sr-contact sr-contact-utile" onclick="goToContatto('${escapeJs(c.id)}')">
         <div class="sr-contact-left">
           <div class="sr-contact-label">${labelHtml}</div>
           ${luogoHtml}
@@ -16526,7 +16539,7 @@ function renderSearchResults(query, targetId) {
       </div>`;
     }
     if (isReparto) {
-      return `<div class="sr-contact sr-contact-reparto" onclick="navigate('numeri', {filter:'${escapeJs(c.id)}'})">
+      return `<div class="sr-contact sr-contact-reparto" onclick="goToContatto('${escapeJs(c.id)}')">
         <div class="sr-contact-left">
           <div class="sr-contact-label">${labelHtml}</div>
           ${luogoHtml}
@@ -16535,7 +16548,7 @@ function renderSearchResults(query, targetId) {
         <div class="sr-contact-nums">${numChipsHtml}</div>
       </div>`;
     }
-    return `<div class="sr-contact" onclick="navigate('numeri', {filter:'${escapeJs(c.id)}'})">
+    return `<div class="sr-contact" onclick="goToContatto('${escapeJs(c.id)}')">
       <div class="sr-contact-left">
         <div class="sr-contact-label">${labelHtml}</div>
         ${luogoHtml}
