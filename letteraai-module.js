@@ -4074,8 +4074,7 @@ function renderLettereHome(){
       <span class="lt-home-ic">📋</span><div><div class="lt-home-t">Segnalazioni</div><div class="lt-home-d">Segnalazioni ricevute dagli utenti (admin).</div></div></div>
     <div class="lt-home-row" onclick="navigate('lettere-config')">
       <span class="lt-home-ic">📝</span><div><div class="lt-home-t">Editor Prompt</div><div class="lt-home-d">Prompt di sistema e libreria template (admin).</div></div></div>` : '';
-  mc().innerHTML = pageHead('LetteraAI', '',
-    `<button class="btn" onclick="window.Lettere.nuova()">Nuova lettera</button>`) + `
+  mc().innerHTML = pageHead('LetteraAI', '', '') + `
     <div class="lt-home-group">Flusso di generazione</div>
     <div class="lt-home-list">
       <div class="lt-home-row" onclick="navigate('lettere-carica')">
