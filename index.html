@@ -1337,6 +1337,10 @@ body.search-overlay-open #search-overlay{touch-action:pan-y;overscroll-behavior-
 }
 .bl-title{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:8px;font-weight:500}
 .bl-title-warn{color:var(--danger)}
+.scheda-toc{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.scheda-toc li{margin:0}
+.scheda-toc-link{display:block;padding:7px 10px;color:var(--accent);font-size:14px;border-radius:3px;cursor:pointer;text-decoration:none;border-left:2px solid transparent;transition:background .12s,border-color .12s}
+.scheda-toc-link:hover{background:var(--accent-soft);border-left-color:var(--accent)}
 
 /* text */
 .bl-text-body{font-size:15px;line-height:1.65;color:var(--ink-soft)}
@@ -5573,10 +5577,31 @@ function copyClinicalNote(blockId) {
   });
 }
 
+/* Scroll fluido + flash a un blocco della scheda (usato dall'indice cliccabile). */
+function scrollToSchedaBlock(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  catch (e) { el.scrollIntoView(); }
+  el.classList.add('bl-flash');
+  setTimeout(() => el.classList.remove('bl-flash'), 2000);
+}
+window.scrollToSchedaBlock = scrollToSchedaBlock;
+
 function renderSchedaBody(scheda) {
   const sections = [];
 
-  if (scheda.sintesi) {
+  // Indice cliccabile delle sezioni (blocchi con titolo) in cima alla scheda; fallback alla sintesi.
+  const _schedaId = (scheda && (scheda.id || scheda.slug)) || 'x';
+  const _tocItems = (Array.isArray(scheda.contenuti) ? scheda.contenuti : [])
+    .map((b, idx) => ({ idx, titolo: (b && (b.titolo || b.caption) || '').toString().trim() }))
+    .filter(x => x.titolo);
+  if (_tocItems.length >= 2) {
+    const _toc = _tocItems.map(t =>
+      `<li><a class="scheda-toc-link" onclick="scrollToSchedaBlock('bl-${escapeJs(_schedaId)}-${t.idx}')">${escapeHtml(t.titolo)}</a></li>`
+    ).join('');
+    sections.push(schedaSection('Indice', `<ul class="scheda-toc">${_toc}</ul>`, true));
+  } else if (scheda.sintesi) {
     sections.push(schedaSection('Sintesi', `<p style="font-family:var(--serif);font-size:17px;line-height:1.55;font-style:italic;color:var(--ink-soft);">${escapeHtml(scheda.sintesi)}</p>`, true));
   }
 
