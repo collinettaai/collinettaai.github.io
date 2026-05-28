@@ -4538,7 +4538,6 @@ const urlRouter = (function() {
       case 'search':          return p.query ? ['search', encodeURIComponent(p.query)] : ['search'];
       case 'tag':             return ['tag', p.tag];
       case 'lettere':                  return ['lettere'];
-      case 'lettere-nuovo':            return ['lettere', 'nuovo'];
       case 'lettere-carica':           return ['lettere', 'carica'];
       case 'lettere-anonimizza':       return ['lettere', 'anonimizza'];
       case 'lettere-genera':           return ['lettere', 'genera'];
@@ -4603,7 +4602,6 @@ const urlRouter = (function() {
       case 'search': return { route: 'search', params: { query: second ? decodeURIComponent(second) : '' }, blockHash };
       case 'tag': return { route: 'tag', params: { tag: second }, blockHash };
       case 'lettere':
-        if (second === 'nuovo')             return { route: 'lettere-nuovo', params: {}, blockHash };
         if (second === 'carica')            return { route: 'lettere-carica', params: {}, blockHash };
         if (second === 'anonimizza')        return { route: 'lettere-anonimizza', params: {}, blockHash };
         if (second === 'genera')            return { route: 'lettere-genera', params: {}, blockHash };
@@ -4819,7 +4817,6 @@ function navigate(route, params = {}, navOpts = {}) {
     case 'search': renderSearchResults(params.query); break;
     case 'tag': renderTagPage(params.tag); break;
     case 'lettere':                  _openLetterAI('renderHome'); break;
-    case 'lettere-nuovo':            _openLetterAI('renderWizard'); break;
     case 'lettere-carica':           _openLetterAI('renderCarica'); break;
     case 'lettere-anonimizza':       _openLetterAI('renderAnonimizza'); break;
     case 'lettere-genera':           _openLetterAI('renderGenera'); break;
