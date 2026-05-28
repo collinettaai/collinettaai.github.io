@@ -5100,8 +5100,13 @@ state.reparto = state.reparto || {
   systemPrompt: null,   // istruzioni di sistema modificabili (null = usa default)
   systemPromptSha: null,// sha del file nel repo (per evitare conflitti al salvataggio)
   systemPromptLoaded: false, // true dopo il primo tentativo di caricamento dal repo
+  topicsCustom: {},     // override delle istruzioni dei topic: { id: 'istruzione' } (vuoto = usa default)
+  topicsSha: null,      // sha del file topics nel repo
   promptCustom: ''      // se l'utente edita il prompt finale, lo conserviamo
 };
+
+// Percorso nel repo dati dove persistono le istruzioni personalizzate dei topic del Reparto.
+const REPARTO_TOPICS_PATH = 'content/reparto/topics.json';
 
 // Percorso nel repo dati CollinettaAI-data dove persiste il system prompt del Reparto.
 // Stesso schema dei prompt di LetteraAI (file .md nel repo, condiviso tra tutti i login).
@@ -5123,13 +5128,19 @@ const REPARTO_TOPICS = [
   { id: 'attenzioni', label: 'Punti di attenzione', istr: 'gli aspetti a cui prestare particolare attenzione nella gestione del paziente' }
 ];
 
+// Istruzione effettiva di un topic: override personalizzato (se presente e non vuoto) o default.
+function repartoTopicIstr(t) {
+  const custom = state.reparto.topicsCustom && state.reparto.topicsCustom[t.id];
+  return (custom !== undefined && custom !== null && String(custom).trim()) ? String(custom).trim() : t.istr;
+}
+
 // Costruisce il prompt finale in base a system prompt, preferenze, cartella ed esami.
 function buildRepartoPrompt() {
   const r = state.reparto;
   const sys = (r.systemPrompt !== null ? r.systemPrompt : REPARTO_SYSTEM_DEFAULT).trim();
   const richieste = REPARTO_TOPICS.filter(t => r.chiedi[t.id]);
   const elenco = richieste.length
-    ? richieste.map((t, i) => `${i + 1}. ${t.istr.charAt(0).toUpperCase() + t.istr.slice(1)}`).join('\n')
+    ? richieste.map((t, i) => { const istr = repartoTopicIstr(t); return `${i + 1}. ${istr.charAt(0).toUpperCase() + istr.slice(1)}`; }).join('\n')
     : '1. Un inquadramento clinico generale del caso';
   const cartella = (r.anonText || '').trim() || '[INCOLLA QUI LA CARTELLA ANONIMIZZATA]';
   const esamiBlock = (r.xlsText || '').trim()
@@ -5147,10 +5158,10 @@ ${cartella}${esamiBlock}`;
 
 function renderReparto() {
   const r = state.reparto;
-  // Al primo accesso, carico il system prompt salvato nel repo (se esiste).
+  // Al primo accesso, carico il system prompt e i topic salvati nel repo (se esistono).
   if (!r.systemPromptLoaded) {
     r.systemPromptLoaded = true;
-    loadRepartoSystemPrompt().then(() => {
+    Promise.all([loadRepartoSystemPrompt(), loadRepartoTopics()]).then(() => {
       if (state.currentView === 'reparto') renderReparto();
     }).catch(() => {});
   }
@@ -5213,15 +5224,30 @@ function renderReparto() {
       <div class="ctitle">3 · Cosa vuoi chiedere all'AI</div>
       <div style="margin-top:8px;">${topicChecks}</div>
       <details style="margin-top:12px;">
-        <summary style="cursor:pointer;font-size:13px;color:var(--accent);">⚙ Istruzioni di sistema (modificabili)</summary>
+        <summary style="cursor:pointer;font-size:13px;color:var(--accent);">⚙ Istruzioni di sistema e dei punti (modificabili)</summary>
         <div style="margin-top:10px;">
+          <label style="font-size:12px;color:var(--ink-muted);font-weight:600;">Istruzioni di sistema</label>
           <textarea id="reparto-sys" rows="8" class="mono-input" style="width:100%;font-size:12px;" oninput="window.setRepartoSys(this.value)">${escapeHtml(sysVal)}</textarea>
           <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
             ${isAdmin() ? `<button class="btn primary" style="font-size:12px;background:var(--ink);color:var(--bg-paper);border-color:var(--ink);" onclick="runWithSpinner(this, window.saveRepartoSys)">💾 Salva</button>` : ''}
             <button class="btn" style="font-size:12px;" onclick="window.resetRepartoSys()">⟲ Ripristina istruzioni di default</button>
           </div>
-          <div style="font-size:11px;color:var(--ink-muted);margin-top:6px;">${isAdmin() ? '' : 'Solo gli amministratori possono salvare istruzioni condivise. Le tue modifiche valgono solo per questa sessione.'}</div>
-        </div>
+
+          <div style="border-top:1px solid var(--rule-soft);margin-top:14px;padding-top:12px;">
+            <label style="font-size:12px;color:var(--ink-muted);font-weight:600;">Istruzioni dei punti (criticità, diagnosi differenziali, ecc.)</label>
+            <div style="font-size:11px;color:var(--ink-muted);margin:4px 0 8px;">Testo inserito nel prompt per ciascun punto quando è selezionato.</div>
+            ${REPARTO_TOPICS.map(t => `
+              <div style="margin-bottom:8px;">
+                <label style="font-size:11px;color:var(--ink-muted);">${escapeHtml(t.label)}</label>
+                <textarea id="reparto-topic-${t.id}" rows="2" class="mono-input" style="width:100%;font-size:12px;" oninput="window.setRepartoTopicIstr('${t.id}', this.value)">${escapeHtml(repartoTopicIstr(t))}</textarea>
+              </div>`).join('')}
+            <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+              ${isAdmin() ? `<button class="btn primary" style="font-size:12px;background:var(--ink);color:var(--bg-paper);border-color:var(--ink);" onclick="runWithSpinner(this, window.saveRepartoTopics)">💾 Salva punti</button>` : ''}
+              <button class="btn" style="font-size:12px;" onclick="window.resetRepartoTopics()">⟲ Ripristina punti di default</button>
+            </div>
+          </div>
+
+          <div style="font-size:11px;color:var(--ink-muted);margin-top:10px;">${isAdmin() ? '' : 'Solo gli amministratori possono salvare istruzioni condivise. Le tue modifiche valgono solo per questa sessione.'}</div>
         </div>
       </details>
     </div>
@@ -5290,6 +5316,67 @@ window.saveRepartoSys = async function () {
     }
   }
 };
+// ── Istruzioni dei punti (topic) — modificabili e salvabili come il system prompt ──
+window.setRepartoTopicIstr = function (id, v) {
+  if (!state.reparto.topicsCustom) state.reparto.topicsCustom = {};
+  state.reparto.topicsCustom[id] = v;
+  if (!state.reparto.promptCustom) {
+    const ta = document.getElementById('reparto-prompt');
+    if (ta) ta.value = buildRepartoPrompt();
+  }
+};
+window.resetRepartoTopics = function () {
+  state.reparto.topicsCustom = {};
+  renderReparto();
+  toast('Istruzioni dei punti ripristinate', 'info');
+};
+
+// Carica le istruzioni personalizzate dei topic da CollinettaAI-data (se presenti).
+async function loadRepartoTopics() {
+  try {
+    const f = await gh.getFile(REPARTO_TOPICS_PATH);
+    if (f && f.content && f.content.trim()) {
+      const parsed = JSON.parse(f.content);
+      if (parsed && typeof parsed === 'object') {
+        // Tengo solo gli id validi, ignorando chiavi sconosciute
+        const valid = {};
+        REPARTO_TOPICS.forEach(t => { if (typeof parsed[t.id] === 'string') valid[t.id] = parsed[t.id]; });
+        state.reparto.topicsCustom = valid;
+      }
+      state.reparto.topicsSha = f.sha;
+    }
+  } catch (e) { /* file assente o JSON non valido: si usano i default */ }
+}
+
+// Salva le istruzioni personalizzate dei topic in CollinettaAI-data (solo admin).
+window.saveRepartoTopics = async function () {
+  if (!isAdmin()) {
+    return toast('Solo gli amministratori possono modificare le istruzioni dei punti', 'error');
+  }
+  // Raccolgo i valori correnti dai textarea (fallback allo stato)
+  const out = {};
+  REPARTO_TOPICS.forEach(t => {
+    const ta = document.getElementById('reparto-topic-' + t.id);
+    const v = ta ? ta.value : (state.reparto.topicsCustom || {})[t.id];
+    if (v !== undefined && v !== null) out[t.id] = String(v);
+  });
+  state.reparto.topicsCustom = out;
+  try {
+    const res = await gh.putFile(REPARTO_TOPICS_PATH, JSON.stringify(out, null, 2), state.reparto.topicsSha || null,
+      `Aggiorna istruzioni punti Reparto (by ${state.session.username})`);
+    if (res && res.content) state.reparto.topicsSha = res.content.sha;
+    toast('Istruzioni dei punti salvate nel repo', 'success');
+  } catch (e) {
+    if (e && e.code === 'CONFLICT') {
+      toast('Conflitto: ricarico la versione aggiornata', 'warning');
+      await loadRepartoTopics();
+      renderReparto();
+    } else {
+      toast('Errore salvataggio: ' + e.message, 'error');
+    }
+  }
+};
+
 window.clearRepartoXls = function () {
   state.reparto.xlsText = '';
   state.reparto.promptCustom = '';
