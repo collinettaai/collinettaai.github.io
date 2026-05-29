@@ -509,7 +509,7 @@ Inizia con la frase:
 "Durante la degenza il/la paziente è stato/a sottoposto/a ai seguenti esami ematochimici:"
 (La microbiologia NON va qui: mettila in fondo sotto la sua riga di apertura separata.)
 
-Poi elenca gli esami raggruppati per categoria, con trattino lungo "–" come bullet, ogni categoria su UNA SOLA RIGA. Su ciascuna riga: PRIMA i valori nella norma (separati da virgola + "nella norma"), POI "; si segnala" con gli alterati (valore numerico esatto + range):
+Poi elenca gli esami raggruppati per categoria, con trattino lungo "–" come bullet, ogni categoria su UNA SOLA RIGA. Su ciascuna riga la dicitura "nella norma" va all'INIZIO come etichetta, seguita dall'elenco dei valori nella norma (separati da virgola); POI, se presenti, "; si segnala" con gli alterati (valore numerico esatto + range):
 
 – Emocromo: nella norma MCV, MCH, piastrine, WBC; si segnala **Hb 122 g/L** (140-175).
 – Indici di flogosi: nella norma procalcitonina; si segnala **PCR 47,90 → 29,65 mg/L** (0,00-4,99).
