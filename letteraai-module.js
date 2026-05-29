@@ -298,8 +298,10 @@ Esempi:
 
 REGOLE:
 - Nessuna riga vuota tra accertamenti.
+- FEDELTÀ AL TESTO DEL REFERTO: riporta il contenuto del referto usando il testo reale del documento, non una parafrasi con parole tue. Puoi accorciare eliminando frasi non clinicamente rilevanti, ma le frasi che riporti devono ricalcare il referto originale (stessi termini, stesse misure, stesse sedi), senza riassumere più reperti distinti in un'unica frase generica. NON sostituire i reperti descrittivi con una tua sintesi interpretativa.
+- CONCLUSIONI: se il referto ha una sezione conclusiva esplicita ("Conclusioni", "In conclusione", "Conclusioni diagnostiche"), riportala testualmente. Se il referto NON ha conclusioni esplicite (solo descrizione dei reperti), riporta i reperti descrittivi così come sono nel referto — NON inventare una conclusione e non comprimerli in una frase riassuntiva.
 - Per esami ripetuti (controlli seriati): un'unica voce con i controlli concatenati. Sia l'esame iniziale sia ogni controllo successivo hanno il nome/etichetta e la data in grassetto. Per i controlli successivi al primo usa l'etichetta "**Controllo (DD/MM):**" in grassetto. Esempio: "**TC encefalo (17/02):** [esito iniziale]. **Controllo (18/02):** [esito]. **Controllo (23/02):** [esito]."
-- Riporta sempre le conclusioni; per stenosi significative o reperti patologici, includi dettaglio (sede, grado, caratteristiche).
+- Per stenosi significative o reperti patologici, includi sempre il dettaglio (sede, grado, caratteristiche) presente nel referto.
 - NON sottolineare reperti strumentali patologici (la sottolineatura è riservata ai valori ematochimici).
 
 
@@ -559,7 +561,7 @@ const DEFAULT_USER_PREFS = {
 /* Descrizioni per i tooltip (hover) dei pulsanti di preferenza, per chiave→valore. */
 const PREF_TITLES = {
   lab: { all: 'Riporta tutti i valori di laboratorio, con range di normalità', altered: 'Riporta solo i valori alterati (fuori range) e i 6 obbligatori (colesterolo totale, HDL, LDL, trigliceridi, HbA1c, creatinina)' },
-  acc: { brief: 'Accertamenti strumentali: conclusioni sintetiche', extended: 'Accertamenti strumentali: conclusioni estese con tutti i dettagli clinicamente rilevanti del referto' },
+  acc: { brief: 'Accertamenti strumentali: solo i reperti rilevanti, ma col testo reale del referto (non parafrasato)', extended: 'Accertamenti strumentali: tutti i reperti del referto, col testo reale del documento (non parafrasato)' },
   dec: { short: 'Decorso clinico: sintesi concisa (150-250 parole), solo eventi e decisioni principali', standard: 'Decorso clinico: lunghezza standard', long: 'Decorso clinico: racconto dettagliato (400-600 parole) con eventi intermedi e ragionamento clinico' },
   an: { essential: 'Anamnesi essenziale: riporta tutte le patologie ma in forma sintetica', complete: 'Anamnesi completa, con i dettagli rilevanti' },
   rac: { main: 'Solo le raccomandazioni principali (terapia, follow-up clinico)', all: 'Tutte le raccomandazioni' },
@@ -3255,8 +3257,10 @@ function buildPreferencesPromptBlock(){
   if(prefs.lab === 'altered') blocks.push('- ESAMI DI LABORATORIO: riporta SOLO i valori alterati (fuori range) e i 6 obbligatori (Colesterolo totale, HDL, LDL, Trigliceridi, HbA1c, Creatinina). Per ogni categoria, se tutti nella norma scrivi solo "[Categoria]: nella norma" senza elencare i singoli esami.');
   else blocks.push('- ESAMI DI LABORATORIO: riporta TUTTI i valori disponibili con il relativo range di normalità, inclusi quelli nella norma; NON limitarti ai soli valori patologici.');
   if(prefs.acc !== DEFAULT_USER_PREFS.acc){
-    if(prefs.acc === 'extended') blocks.push('- ACCERTAMENTI STRUMENTALI: riporta conclusioni estese con tutti i dettagli clinicamente rilevanti del referto.');
-    else blocks.push('- ACCERTAMENTI STRUMENTALI: riporta conclusioni sintetiche in 1-2 frasi per ogni accertamento.');
+    if(prefs.acc === 'extended') blocks.push('- ACCERTAMENTI STRUMENTALI: riporta il referto in forma estesa, includendo tutti i reperti del documento con il testo reale del referto (non parafrasato).');
+    else blocks.push('- ACCERTAMENTI STRUMENTALI: riporta in forma sintetica i soli reperti clinicamente rilevanti, ma usando il testo reale del referto (copiando/accorciando le frasi del documento), NON una parafrasi con parole tue. Se il referto non ha conclusioni esplicite, riporta i reperti descrittivi così come sono.');
+  } else {
+    blocks.push('- ACCERTAMENTI STRUMENTALI: riporta i reperti usando il testo reale del referto (copiando/accorciando le frasi del documento), NON una parafrasi con parole tue. Se mancano conclusioni esplicite, riporta i reperti descrittivi come nel referto, senza riassumerli in una frase generica.');
   }
   if(prefs.dec !== DEFAULT_USER_PREFS.dec){
     if(prefs.dec === 'short') blocks.push('- DECORSO CLINICO: sintesi concisa 150-250 parole, solo eventi principali e decisioni terapeutiche.');
@@ -3956,6 +3960,17 @@ function splitFirmaColumns(line){
   return [t.trim(), ''];
 }
 
+// Riga iniziale "Luogo, data" della lettera (es. "Padova, 14/05/2026" o "[CITTA], 14/05/2026").
+// Va allineata a destra. La riconosco solo nelle prime righe del documento per evitare falsi
+// positivi su altre righe "città, data" nel corpo.
+function isLuogoDataLine(line){
+  const t = (line || '').trim();
+  if (!t || t.length > 60) return false;
+  // "[CITTA], data" oppure "Parola(e), GG/MM/AAAA" oppure "Parola(e), GG mese AAAA"
+  if (/^\[?CITTA\]?\s*,/.test(t)) return true;
+  return /^[A-Za-zÀ-ÿ'.\s]{2,30},\s*(?:\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{1,2}\s+\p{L}+\s+\d{4})\s*$/u.test(t);
+}
+
 // Converte un testo (con eventuali tabelle markdown) in HTML per export/stampa.
 // boldQuotes: se true, mette in grassetto anche le "diagnosi" tra virgolette (export Word).
 function letteraTextToExportHtml(text, boldQuotes){
@@ -3977,7 +3992,15 @@ function letteraTextToExportHtml(text, boldQuotes){
       + `<td style="text-align:right;vertical-align:top;padding:0;">${right}</td>`
       + `</tr></table>`;
   };
+  let seenNonEmpty = 0; // per riconoscere la riga luogo/data solo all'inizio del documento
   for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim()) seenNonEmpty++;
+    // Riga iniziale "Luogo, data": allineata a destra (solo tra le prime righe non vuote)
+    if (seenNonEmpty <= 2 && isLuogoDataLine(lines[i])) {
+      flushPara();
+      out += `<div style="text-align:right;font-family:'Times New Roman',serif;font-size:10.5pt;line-height:1.7;">${letteraMarkInline(lines[i].trim(), false)}</div>`;
+      continue;
+    }
     // Inizio tabella: riga | … | seguita da riga separatrice | --- |
     if (isMdTableRow(lines[i]) && i + 1 < lines.length && isMdTableSeparator(lines[i + 1])) {
       flushPara();
