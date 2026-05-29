@@ -224,17 +224,17 @@ Frase di apertura: "Durante la degenza il/la paziente è stato/a sottoposto/a ai
 (NON citare qui la microbiologia: gli esami microbiologici vanno in una sezione separata, descritta più sotto.)
 
 FORMATO OBBLIGATORIO — una riga per categoria, con trattino lungo come bullet. Ogni riga ha DUE parti, in quest'ordine:
-1. PRIMA gli esami nella norma: elencali separati da virgola e chiudi con "nella norma".
+1. PRIMA la dicitura "nella norma" seguita dall'elenco degli esami risultati nella norma (separati da virgola). La parola "nella norma" va all'INIZIO, come etichetta, NON in fondo all'elenco.
 2. POI, solo se ci sono valori alterati, la dicitura "; si segnala" seguita dagli esami alterati con il loro VALORE NUMERICO ESATTO e il range tra parentesi.
 
 Struttura della riga:
-– [Categoria]: [esame1], [esame2], [esame3] nella norma; si segnala **[EsameAlterato] VALORE unità** (v.n. range), **[Altro] VALORE unità** (v.n. range).
+– [Categoria]: nella norma [esame1], [esame2], [esame3]; si segnala **[EsameAlterato] VALORE unità** (v.n. range), **[Altro] VALORE unità** (v.n. range).
 
 Esempi:
-– Emocromo con formula: piastrine, MCV, MCHC, RDW nella norma; si segnala **Eritrociti 3,65 x10^12/L** (4,31-5,10), **Emoglobina 122 g/L** (123-153), **Linfociti 0,61 x10^9/L** (1,10-4,80).
-– Profilo coagulativo: INR, APTT ratio nella norma.
-– Indici di flogosi: PCT nella norma; si segnala **PCR 16,89 → 3,87 mg/L** (<5,00).
-– Funzionalità renale con ionemia: urea, acido urico, cloro, calcio nella norma; si segnala **Creatinina 0,55 mg/dL** (0,60-1,10), **Sodio 131 → 128 mmol/L** (136-145), **Potassio 3,3 mmol/L** (3,5-5,1).
+– Emocromo con formula: nella norma piastrine, MCV, MCHC, RDW; si segnala **Eritrociti 3,65 x10^12/L** (4,31-5,10), **Emoglobina 122 g/L** (123-153), **Linfociti 0,61 x10^9/L** (1,10-4,80).
+– Profilo coagulativo: nella norma INR, APTT ratio.
+– Indici di flogosi: nella norma PCT; si segnala **PCR 16,89 → 3,87 mg/L** (<5,00).
+– Funzionalità renale con ionemia: nella norma urea, acido urico, cloro, calcio, Creatinina 0,82 mg/dL; si segnala **Sodio 131 → 128 mmol/L** (136-145), **Potassio 3,3 mmol/L** (3,5-5,1).
 
 REGOLE GENERALI:
 - Se tutti gli esami della categoria sono nella norma: "[Categoria]: nella norma." (senza la parte "si segnala").
@@ -251,8 +251,10 @@ Ogni valore alterato DEVE essere riportato con il numero esatto e l'unità. È V
 - NO: "potassio ai limiti inferiori" → SÌ: "**Potassio 3,3 mmol/L** (3,5-5,1)".
 Puoi aggiungere una breve nota clinica a parole DOPO il valore numerico, ma il numero deve sempre esserci.
 
-REGOLA — ESAMI SEMPRE CON VALORE ESATTO (anche se nella norma — vanno comunque nell'elenco "nella norma" ma scritti con il numero, non come "nella norma"):
-Colesterolo totale, HDL, LDL, Trigliceridi, Emoglobina glicata (HbA1c), Creatinina.
+REGOLA — ESAMI SEMPRE CON VALORE ESATTO:
+Colesterolo totale, HDL, LDL, Trigliceridi, Emoglobina glicata (HbA1c), Creatinina vanno SEMPRE riportati con il loro valore numerico, anche quando sono nella norma.
+- Se sono NELLA NORMA: vanno nel gruppo iniziale "nella norma", scritti col numero (NON in grassetto, NON nel gruppo "si segnala"). Es: "nella norma urea, acido urico, Creatinina 0,82 mg/dL".
+- Se sono ALTERATI: vanno nel gruppo "si segnala" col numero in grassetto, come gli altri alterati.
 
 REGOLA — VALORI MULTIPLI IN SERIE TEMPORALE (TREND CON FRECCE):
 Mostra il trend (con frecce →) SOLO se la serie è iniziata nei range e poi un valore intermedio o finale è diventato patologico (alterazione insorta DURANTE la degenza), OPPURE se un valore patologico si è modificato in modo clinicamente rilevante nel corso della degenza (es. PCR che si negativizza). In tutti gli altri casi mostra solo l'ultimo valore.
@@ -466,7 +468,8 @@ Ogni elemento ha questa struttura:
 {
   "quote": "frase esatta dalla lettera (max 120 caratteri, abbastanza specifica da essere univoca)",
   "severity": "contradiction" | "unsupported" | "inferred",
-  "reason": "spiegazione in italiano in una riga (max 100 caratteri)"
+  "reason": "spiegazione in italiano in una riga (max 100 caratteri)",
+  "suggestion": "la frase corretta che dovrebbe sostituire 'quote' (riscrittura coerente con la cartella). Se non è proponibile una correzione (es. il fatto va solo rimosso), lascia stringa vuota."
 }
 
 Severity:
@@ -502,9 +505,9 @@ Inizia con la frase:
 
 Poi elenca gli esami raggruppati per categoria, con trattino lungo "–" come bullet, ogni categoria su UNA SOLA RIGA. Su ciascuna riga: PRIMA i valori nella norma (separati da virgola + "nella norma"), POI "; si segnala" con gli alterati (valore numerico esatto + range):
 
-– Emocromo: MCV, MCH, piastrine, WBC nella norma; si segnala **Hb 122 g/L** (140-175).
-– Indici di flogosi: procalcitonina nella norma; si segnala **PCR 47,90 → 29,65 mg/L** (0,00-4,99).
-– Coagulazione: fibrinogeno, APTT ratio nella norma; si segnala **INR 1,40** (0,90-1,20), **D-dimero 1885 µg/L FEU** (190-600).
+– Emocromo: nella norma MCV, MCH, piastrine, WBC; si segnala **Hb 122 g/L** (140-175).
+– Indici di flogosi: nella norma procalcitonina; si segnala **PCR 47,90 → 29,65 mg/L** (0,00-4,99).
+– Coagulazione: nella norma fibrinogeno, APTT ratio; si segnala **INR 1,40** (0,90-1,20), **D-dimero 1885 µg/L FEU** (190-600).
 
 Dopo gli ematochimici, se presenti, aggiungi la sezione microbiologica con riga di apertura propria:
 "Sono stati inoltre eseguiti i seguenti esami microbiologici e sierologici:"
@@ -518,11 +521,12 @@ VALORI PATOLOGICI: usa **...** (grassetto) attorno al nome esame + valori patolo
 NOMI ESAMI: riporta il nome come nel file (es. "MCV", "Hb in PEC", "gGT"), rimuovendo solo il prefisso "B-", "P-", "S-", "U-".
 
 ESAMI CON VALORE SEMPRE ESPLICITO (anche se nella norma):
-Colesterolo totale, HDL, LDL, trigliceridi, HbA1c, creatinina, TSH, urea.
+Colesterolo totale, HDL, LDL, trigliceridi, HbA1c, creatinina, TSH, urea. Se nella norma, vanno nel gruppo iniziale "nella norma" scritti col numero (non in grassetto, non in "si segnala"); se alterati, vanno in "si segnala" col numero in grassetto.
 
-FORMATO DELLA RIGA — prima i normali, poi gli alterati:
-Ogni riga categoria ha due parti in quest'ordine: 1) gli esami nella norma elencati separati da virgola e chiusi con "nella norma"; 2) se ci sono alterati, "; si segnala" seguito dagli esami alterati con valore numerico esatto e range.
-Es: "– Emocromo con formula: piastrine, MCV, MCHC, RDW nella norma; si segnala **Emoglobina 122 g/L** (123-153), **Linfociti 0,61 x10^9/L** (1,10-4,80)."
+FORMATO DELLA RIGA — la dicitura "nella norma" va all'INIZIO come etichetta, NON in fondo:
+Ogni riga categoria ha due parti in quest'ordine: 1) "nella norma" seguita dall'elenco degli esami nella norma (separati da virgola); 2) se ci sono alterati, "; si segnala" seguito dagli esami alterati con valore numerico esatto e range.
+Es: "– Emocromo con formula: nella norma piastrine, MCV, MCHC, RDW; si segnala **Emoglobina 122 g/L** (123-153), **Linfociti 0,61 x10^9/L** (1,10-4,80)."
+Es con valore sempre esplicito nella norma: "– Funzionalità renale: nella norma Na, K, urea, Creatinina 0,82 mg/dL; si segnala **Sodio 131 mmol/L** (136-145)."
 Se tutti nella norma: "– [Categoria]: nella norma."
 
 VALORI ALTERATI SEMPRE NUMERICI (MAI A PAROLE): ogni valore alterato deve avere il numero esatto e l'unità. VIETATO sostituirlo con una descrizione (NO "PCR negativizzata", NO "iponatriemia ricorrente", NO "potassio ai limiti"). Una nota a parole può seguire il numero, mai sostituirlo.
@@ -3820,18 +3824,50 @@ async function saveUserTemplateToRepo(data){
    RAG — selezione casi simili
    ═══════════════════════════════════════════════════════════════════════════ */
 function jaccardKeywords(a, b){
-  const ta = new Set(String(a||'').toLowerCase().split(/\W+/).filter(w => w.length>3));
-  const tb = new Set(String(b||'').toLowerCase().split(/\W+/).filter(w => w.length>3));
+  // Stopword cliniche/generiche da ignorare nel match (non discriminano la diagnosi)
+  const STOP = new Set(['con','per','del','della','delle','dello','degli','dei','sindrome','quadro','sospetto','sospetta','acuto','acuta','cronico','cronica','destra','destro','sinistra','sinistro','bilaterale','paziente','riacutizzazione']);
+  const norm = s => String(s||'').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')   // togli accenti
+    .split(/\W+/).filter(w => w.length>2 && !STOP.has(w));
+  const ta = new Set(norm(a)), tb = new Set(norm(b));
   if (!ta.size || !tb.size) return 0;
-  let inter = 0; ta.forEach(w => { if (tb.has(w)) inter++; });
+  // Match: esatto OPPURE per radice (una parola è prefisso dell'altra, min 4 lettere) — così
+  // "ischemico"/"ischemia", "emorragico"/"emorragia" contano come simili.
+  let inter = 0;
+  ta.forEach(w => {
+    if (tb.has(w)) { inter++; return; }
+    for (const x of tb) {
+      const n = Math.min(w.length, x.length);
+      if (n >= 4 && (w.startsWith(x.slice(0,4)) && x.startsWith(w.slice(0,4)))) { inter += 0.6; break; }
+    }
+  });
   return inter / (ta.size + tb.size - inter);
+}
+// Normalizza un nome di reparto per confronto tollerante (case/spazi/accenti)
+function normWard(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
 }
 function selectRAGExamples(ward, diagnosi, tipo, k){
   k = k || 3;
-  const scored = L.casi.map(c => ({ caso:c,
-    score: (wardName(c)===ward?3:0) + jaccardKeywords(c.diagnosi||c.name, diagnosi)*2 + (c.tipo===tipo?1:0) }));
-  scored.sort((a,b)=>b.score-a.score);
-  return scored.filter(s=>s.score>0).slice(0,k).map(s=>s.caso);
+  const wNorm = normWard(ward);
+  // Pesi max: reparto 3, diagnosi 6 (jaccard*6), tipo 1 → totale max 10 per la percentuale.
+  const W_WARD = 3, W_DIAG = 6, W_TIPO = 1, MAX = W_WARD + W_DIAG + W_TIPO;
+  const scored = L.casi.map(c => {
+    const cw = normWard(wardName(c));
+    let wardScore = 0;
+    if (cw && wNorm) {
+      if (cw === wNorm) wardScore = W_WARD;
+      else if (cw.includes(wNorm) || wNorm.includes(cw)) wardScore = W_WARD * 0.6; // match parziale
+    }
+    const diagScore = jaccardKeywords(c.diagnosi || c.name, diagnosi) * W_DIAG;
+    const tipoScore = (c.tipo === tipo) ? W_TIPO : 0;
+    const raw = wardScore + diagScore + tipoScore;
+    return { caso: c, score: raw, pct: Math.round((raw / MAX) * 100) };
+  });
+  scored.sort((a,b) => b.score - a.score);
+  // Tengo i top-k con almeno un minimo di affinità (score > 0). Allego pct e score al caso
+  // (proprietà non persistite, usate solo dall'UI per mostrare la similarità).
+  return scored.filter(s => s.score > 0).slice(0, k).map(s => Object.assign({}, s.caso, { _ragPct: s.pct, _ragScore: s.score }));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4365,7 +4401,13 @@ function wizStep3Combined(){
   let autoInfo='';
   if(refMode==='auto'){
     const auto=(w.ragExamples&&w.ragExamples[0]);
-    autoInfo=`<div class="lt-status" style="margin-bottom:10px">${auto?`Caso selezionato automaticamente: <strong>${escapeHtml(auto.diagnosi||auto.name||auto.id)}</strong> (${escapeHtml(auto.ward||auto.folder||'')})`:'Nessun caso simile trovato in libreria.'}</div>`;
+    const pct = auto && typeof auto._ragPct === 'number' ? ` — <strong>${auto._ragPct}%</strong> di affinità` : '';
+    autoInfo=`<div class="lt-status" style="margin-bottom:10px">${auto?`Caso selezionato automaticamente: <strong>${escapeHtml(auto.diagnosi||auto.name||auto.id)}</strong> (${escapeHtml(auto.ward||auto.folder||'')})${pct}`:'Nessun caso simile trovato in libreria.'}</div>`;
+    // Se ci sono altri casi simili oltre al primo, li elenco con la rispettiva affinità
+    if(w.ragExamples && w.ragExamples.length>1){
+      const altri = w.ragExamples.slice(1).map(c=>`${escapeHtml(c.diagnosi||c.name||c.id)}${typeof c._ragPct==='number'?` (${c._ragPct}%)`:''}`).join(', ');
+      autoInfo += `<div class="lt-status" style="margin-bottom:10px;font-size:11px;color:var(--ink-muted)">Altri casi simili: ${altri}</div>`;
+    }
   }
   // Inject mode (nascosto se Nessuno)
   const injMode=_refInjectMode==='none'?'fingerprint':_refInjectMode;
@@ -4527,9 +4569,18 @@ function renderVerifica(){
   const flagsDetail = flags.length ? `
     <div style="margin-top:18px">
       <div class="lt-side-title">Dettaglio segnalazioni — ${flags.length}</div>
-      ${flags.map((f,idx)=>`<div class="lt-flag ${sevClass[f.severity]||''}" onclick="window.Lettere._activateFlag(${idx})" style="cursor:pointer" title="Clicca per evidenziare nel testo">
-        <div class="lt-flag-q">"${escapeHtml(f.quote||'')}"</div>
-        <div class="lt-flag-r"><strong>${escapeHtml(sevLabel[f.severity]||f.severity||'')}:</strong> ${escapeHtml(f.reason||'')}</div>
+      ${flags.map((f,idx)=>`<div class="lt-flag ${sevClass[f.severity]||''}" id="lt-flagrow${idx}">
+        <div onclick="window.Lettere._activateFlag(${idx})" style="cursor:pointer" title="Clicca per evidenziare e allineare il testo a sinistra">
+          <div class="lt-flag-q">"${escapeHtml(f.quote||'')}"</div>
+          <div class="lt-flag-r"><strong>${escapeHtml(sevLabel[f.severity]||f.severity||'')}:</strong> ${escapeHtml(f.reason||'')}</div>
+        </div>
+        ${f.suggestion ? `<div class="lt-flag-fix">
+          <div class="lt-fix-ba"><span class="lt-fix-label">Prima</span> <span class="lt-fix-before">${escapeHtml(f.quote||'')}</span></div>
+          <div class="lt-fix-ba"><span class="lt-fix-label">Dopo</span> <span class="lt-fix-after">${escapeHtml(f.suggestion)}</span></div>
+          <div class="lt-row" style="margin-top:6px;gap:6px">
+            <button class="btn sm" onclick="window.Lettere._acceptFix(${idx})">✓ Accetta correzione</button>
+          </div>
+        </div>` : ''}
       </div>`).join('')}
     </div>` : '';
   const body=`
@@ -4538,6 +4589,7 @@ function renderVerifica(){
       <span class="lt-leg lt-sev-red">rosso = contraddice la cartella</span>
       <span class="lt-leg lt-sev-orange">arancio = assente dalla cartella</span>
       <span class="lt-leg lt-sev-yellow">giallo = inferenza non esplicita</span>
+      <br>Clicca una frase evidenziata (a destra) o una segnalazione (in basso) per allinearla nel testo a sinistra. Dove l'AI propone una correzione puoi vederne il prima/dopo e accettarla con un clic.
     </div>
     <div class="lt-row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <button class="btn" onclick="window.Lettere._copyVerifica()">⎘ Copia prompt di verifica per AI esterna</button>
@@ -4585,7 +4637,7 @@ function _renderVerifHighlight(text, flags){
     const tip=escapeHtml(((sevLabel[f.severity]||f.severity||'') + (f.reason? ' — '+f.reason : '')).trim());
     // sostituzione semplice della prima occorrenza
     const i=html.indexOf(q);
-    if(i>=0){ html = html.slice(0,i) + `<mark id="lt-vmark${idx}" class="${cls}" title="${tip}">${q}</mark>` + html.slice(i+q.length); }
+    if(i>=0){ html = html.slice(0,i) + `<mark id="lt-vmark${idx}" class="${cls}" title="${tip}" style="cursor:pointer" onclick="window.Lettere._activateFlag(${idx})">${q}</mark>` + html.slice(i+q.length); }
   });
   return html;
 }
@@ -5309,9 +5361,41 @@ window.Lettere = {
   _togglePasteVerifica(){ L._pasteVerifOpen=!L._pasteVerifOpen; const el=document.getElementById('lt-paste-verif'); if(el) el.style.display=L._pasteVerifOpen?'block':'none'; },
   // Click su una segnalazione → evidenzia e scrolla al mark corrispondente
   _activateFlag(idx){
+    const flags = L._verifFlags || [];
+    const f = flags[idx]; if(!f) return;
+    // Evidenzia a destra
     document.querySelectorAll('mark.lt-flag-active').forEach(m=>m.classList.remove('lt-flag-active'));
     const mark=document.getElementById('lt-vmark'+idx);
     if(mark){ mark.classList.add('lt-flag-active'); mark.scrollIntoView({behavior:'smooth',block:'center'}); }
+    // Allinea/seleziona la stessa frase nella textarea sinistra (scroll alla stessa altezza)
+    const ta=document.getElementById('lt-vout');
+    if(ta && f.quote){
+      const pos=(ta.value||'').indexOf(f.quote.trim());
+      if(pos>=0){
+        ta.focus();
+        ta.setSelectionRange(pos, pos+f.quote.trim().length);
+        // Porto la selezione in vista: stimo la riga e scrollo proporzionalmente
+        const before=ta.value.slice(0,pos);
+        const lineNo=before.split('\n').length-1;
+        const totalLines=ta.value.split('\n').length||1;
+        const target=(lineNo/totalLines)*ta.scrollHeight - ta.clientHeight/2;
+        ta.scrollTop=Math.max(0, target);
+      }
+    }
+  },
+  // Accetta la correzione proposta: sostituisce la quote con la suggestion nel testo della lettera.
+  _acceptFix(idx){
+    const flags = L._verifFlags || [];
+    const f = flags[idx]; if(!f || !f.suggestion){ return; }
+    const w = ensureWiz();
+    const txt = w.outputLetter || '';
+    const q = (f.quote||'').trim();
+    if(!q || txt.indexOf(q)<0){ toast('Frase originale non trovata nel testo (forse già modificata).','error'); return; }
+    w.outputLetter = txt.replace(q, f.suggestion);
+    // Rimuovo il flag accettato e riallineo gli indici
+    L._verifFlags = flags.filter((_,i)=>i!==idx);
+    toast('Correzione applicata.','success');
+    renderVerifica();
   },
   _applyVerif(){
     const ta=document.getElementById('lt-verif-json'); if(!ta) return;
@@ -5323,7 +5407,7 @@ window.Lettere = {
     // Normalizzo le severity (rosso/arancio/giallo → contraddizione/assente/inferenza)
     const map={rosso:'contraddizione',red:'contraddizione',arancio:'assente',orange:'assente',giallo:'inferenza',yellow:'inferenza',
       contraddizione:'contraddizione',assente:'assente',inferenza:'inferenza'};
-    L._verifFlags = parsed.map(f=>({ quote:f.quote||f.frase||'', severity:map[(f.severity||f.tipo||'').toLowerCase()]||'inferenza', reason:f.reason||f.motivo||'' })).filter(f=>f.quote);
+    L._verifFlags = parsed.map(f=>({ quote:f.quote||f.frase||'', severity:map[(f.severity||f.tipo||'').toLowerCase()]||'inferenza', reason:f.reason||f.motivo||'', suggestion:f.suggestion||f.correzione||f.fix||'' })).filter(f=>f.quote);
     L._pasteVerifOpen=false;
     toast(`${L._verifFlags.length} segnalazioni applicate.`,'success');
     renderVerifica();
@@ -5690,6 +5774,12 @@ window.Lettere = {
   .lt-flag.lt-sev-yellow{border-left-color:#d2be00;background:rgba(210,190,0,.06)}
   .lt-flag-q{font-family:'Times New Roman',serif;font-size:13px;font-style:italic;margin-bottom:4px}
   .lt-flag-r{font-size:12px;color:var(--ink-soft)}
+  .lt-flag-fix{margin-top:8px;padding-top:8px;border-top:1px dashed var(--rule)}
+  .lt-fix-ba{font-size:13px;line-height:1.5;margin-bottom:2px}
+  .lt-fix-label{display:inline-block;min-width:46px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-muted);font-weight:600}
+  .lt-fix-before{text-decoration:line-through;color:var(--danger);opacity:.85}
+  .lt-fix-after{color:#1a7a3a;font-weight:500}
+  [data-theme="dark"] .lt-fix-after{color:#5fd07f}
   @media (max-width:760px){ .lt-verif-grid{grid-template-columns:1fr} }
   /* Home a lista (sezioni una sotto l'altra come categorie Procedure) */
   .lt-home-group{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-muted);margin:18px 0 8px}
