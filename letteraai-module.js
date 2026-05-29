@@ -257,12 +257,18 @@ Colesterolo totale, HDL, LDL, Trigliceridi, Emoglobina glicata (HbA1c), Creatini
 - Se sono ALTERATI: vanno nel gruppo "si segnala" col numero in grassetto, come gli altri alterati.
 
 REGOLA — VALORI MULTIPLI IN SERIE TEMPORALE (TREND CON FRECCE):
-Mostra il trend (con frecce →) SOLO se la serie è iniziata nei range e poi un valore intermedio o finale è diventato patologico (alterazione insorta DURANTE la degenza), OPPURE se un valore patologico si è modificato in modo clinicamente rilevante nel corso della degenza (es. PCR che si negativizza). In tutti gli altri casi mostra solo l'ultimo valore.
+REGOLA — VALORI MULTIPLI IN SERIE TEMPORALE (TREND CON FRECCE):
+Quando un esame ha più valori nel tempo, mostra il trend con le frecce → seguendo questi criteri:
+- L'ULTIMO valore della serie va SEMPRE incluso, anche se nel frattempo è rientrato nella norma. Quindi una serie che è stata patologica e poi si è normalizzata va mostrata col trend fino all'ultimo valore normale (es. "**PCR 16,89 → 8,40 → 3,87 mg/L** (<5,00)"): non fermarti al picco e non ometterlo solo perché l'ultimo è normale.
+- Se la serie è iniziata NEI RANGE e poi un valore è diventato patologico durante la degenza: mostra il trend (primo → picco → ultimo).
+- Se la serie è iniziata GIÀ PATOLOGICA: mostra comunque il trend dal primo all'ultimo valore (primo → ultimo, oppure primo → picco → ultimo se c'è un picco intermedio rilevante). NON limitarti all'ultimo valore e non valutare se la variazione sia "rilevante": riporta sempre il trend e l'ultimo valore.
+- Se l'esame ha un solo valore: mostralo singolo.
+Riporta da 2 a 3 valori nella serie (primo, eventuale picco, ultimo); non elencare tutti i prelievi intermedi.
 
 CASO A — Serie sempre nei range: l'esame va tra quelli "nella norma" (solo ultimo valore o "nella norma").
-CASO B — Serie sempre patologica ma stabile: mostra solo l'ultimo valore. Es: "**PCR 8,86 mg/L** (0,00-4,99)".
-CASO C — Serie iniziata nei range, peggiorata durante la degenza: mostra primo → peak → ultimo. Es: "**WBC 8,2 → 14,5 → 11,0 x10^9/L** (4,4-11,0)".
-CASO D — Serie patologica che evolve (peggiora o migliora) durante la degenza: mostra primo → ultimo (o primo → peak → ultimo). Es: "**Sodio 131 → 128 → 134 mmol/L** (136-145)".
+CASO B — Serie sempre patologica: mostra il trend dal primo all'ultimo valore. Es: "**PCR 38,42 → 16,90 → 8,86 mg/L** (0,00-4,99)".
+CASO C — Serie iniziata nei range, peggiorata durante la degenza: mostra primo → picco → ultimo. Es: "**WBC 8,2 → 14,5 → 11,0 x10^9/L** (4,4-11,0)".
+CASO D — Serie patologica poi rientrata nella norma: mostra comunque il trend con l'ultimo valore normale incluso. Es: "**Sodio 128 → 131 → 137 mmol/L** (136-145)".
 CASO E — Valore singolo: mostra il valore. Es: "**INR 1,27**".
 
 REGOLA — RISULTATO PRECEDENTE AOUP:
@@ -532,9 +538,10 @@ Se tutti nella norma: "– [Categoria]: nella norma."
 VALORI ALTERATI SEMPRE NUMERICI (MAI A PAROLE): ogni valore alterato deve avere il numero esatto e l'unità. VIETATO sostituirlo con una descrizione (NO "PCR negativizzata", NO "iponatriemia ricorrente", NO "potassio ai limiti"). Una nota a parole può seguire il numero, mai sostituirlo.
 
 TREND (valori in progressione temporale — ordine cronologico, dal più vecchio al più recente):
-- Mostra il trend (→) se la serie è iniziata nei range e poi è diventata patologica, oppure se un valore patologico si è modificato in modo rilevante durante la degenza (es. PCR che si negativizza, sodio che si corregge).
-  Formato: primo_valore → **picco** → ultimo_valore (con → tra i valori).
-- Se sempre patologica e stabile: mostra solo l'ultimo valore.
+- L'ULTIMO valore della serie va SEMPRE incluso, anche se rientrato nella norma (mostra il trend fino all'ultimo valore normale, non fermarti al picco).
+- Se la serie è iniziata nei range e poi è diventata patologica: mostra il trend (primo → picco → ultimo).
+- Se la serie è iniziata GIÀ patologica: mostra comunque il trend dal primo all'ultimo valore (primo → ultimo, o primo → picco → ultimo). NON limitarti all'ultimo valore e non valutare se la variazione sia "rilevante".
+  Formato: primo_valore → **picco** → ultimo_valore (con → tra i valori); da 2 a 3 valori, non tutti i prelievi.
 - Se sempre nella norma: "nella norma" (eccetto esami con valore sempre esplicito).
 
 CATEGORIE: usa le categorie del file. Se la tabella contiene categorie aggiuntive non elencate nei titoli di sezione standard, includile comunque (es. "Marcatori tumorali", "Profilo immunologico").
