@@ -43,6 +43,7 @@ const PROMPT_PATHS = {
   FINGERPRINT_PROMPT_V3: PATHS.promptsDir + 'fingerprint_extract.md',
   VERIFICA_SYSTEM:       PATHS.promptsDir + 'verifica.md',
   ESAMI_LAB_SYS:         PATHS.promptsDir + 'esami_lab.md',
+  PREF_BLOCKS:           PATHS.promptsDir + 'prompt_preferenze.md',
 };
 
 /* ── CDN (lazy-load: solo al primo uso) ── */
@@ -567,7 +568,43 @@ MICROBIOLOGIA E SIEROLOGIA — SEZIONE SEPARATA, ELENCO COMPLETO:
 
 DISCORSO: italiano clinico formale. MAI inventare valori non presenti nella tabella.`;
 let FINGERPRINT_PROMPT_V2 = FINGERPRINT_PROMPT_V3;
-const PROMPT_EMBEDDED_FALLBACKS = { DEFAULT_SYS, FINGERPRINT_PROMPT_V3, VERIFICA_SYSTEM, ESAMI_LAB_SYS };
+
+// Prompt "preferenze": i frammenti che vengono accodati al system prompt in base alle scelte
+// fatte nella sezione "Genera lettera". Editabile dall'Editor Prompt. Formato: una chiave
+// [categoria.valore] su riga propria, seguita dal testo (anche multilinea) fino alla chiave
+// successiva. Le chiavi disponibili sono quelle elencate qui sotto; se una chiave manca, si usa
+// il fallback embedded.
+let PREF_BLOCKS = `[lab.altered]
+- ESAMI DI LABORATORIO: riporta SOLO i valori alterati (fuori range) e i 6 obbligatori (Colesterolo totale, HDL, LDL, Trigliceridi, HbA1c, Creatinina). Per ogni categoria, se tutti nella norma scrivi solo "[Categoria]: nella norma" senza elencare i singoli esami.
+
+[lab.all]
+- ESAMI DI LABORATORIO: riporta TUTTI i valori disponibili con il relativo range di normalità, inclusi quelli nella norma; NON limitarti ai soli valori patologici.
+
+[acc.extended]
+- ACCERTAMENTI STRUMENTALI: riporta il referto in forma estesa, includendo tutti i reperti del documento con il testo reale del referto (non parafrasato).
+
+[acc.brief]
+- ACCERTAMENTI STRUMENTALI: riporta in forma sintetica i soli reperti clinicamente rilevanti, ma usando il testo reale del referto (copiando/accorciando le frasi del documento), NON una parafrasi con parole tue. Se il referto non ha conclusioni esplicite, riporta i reperti descrittivi così come sono.
+
+[acc.default]
+- ACCERTAMENTI STRUMENTALI: riporta i reperti usando il testo reale del referto (copiando/accorciando le frasi del documento), NON una parafrasi con parole tue. Se mancano conclusioni esplicite, riporta i reperti descrittivi come nel referto, senza riassumerli in una frase generica.
+
+[dec.short]
+- DECORSO CLINICO: sintesi concisa 150-250 parole, solo eventi principali e decisioni terapeutiche.
+
+[dec.long]
+- DECORSO CLINICO: racconto dettagliato 400-600 parole con eventi intermedi e ragionamento clinico.
+
+[an.essential]
+- ANAMNESI: essenziale, riporta TUTTE le patologie del paziente ma in forma più sintetica (frasi brevi, senza dettagli su decorsi pregressi o terapie ormai concluse, mantenendo solo le informazioni cliniche rilevanti per il quadro attuale).
+
+[rac.main]
+- RACCOMANDAZIONI: solo le principali (terapia, follow-up clinico).
+
+[ter.lastPlusHome]
+- TERAPIA ALLA DIMISSIONE: nella tabella della terapia alla dimissione, oltre agli ultimi farmaci prescritti durante il ricovero, includi anche i farmaci della terapia domiciliare che erano stati sospesi solo per esigenze organizzative del ricovero (es. farmaci non disponibili in reparto, sostituiti temporaneamente con equivalenti) e che il paziente dovrà riprendere dopo la dimissione.`;
+
+const PROMPT_EMBEDDED_FALLBACKS = { DEFAULT_SYS, FINGERPRINT_PROMPT_V3, VERIFICA_SYSTEM, ESAMI_LAB_SYS, PREF_BLOCKS };
 
 /* ── Costanti dominio (verbatim da standalone) ── */
 const DEFAULT_USER_PREFS = {
@@ -3271,36 +3308,56 @@ function getEffectiveSystemPrompt(){
 }
 
 // ── buildPreferencesPromptBlock ──
+// Parsa il prompt PREF_BLOCKS (formato [chiave]\ntesto...) in una mappa { chiave: testo }.
+function parsePrefBlocks(src){
+  const map = {};
+  const lines = String(src || '').split('\n');
+  let curKey = null, buf = [];
+  const flush = () => { if(curKey){ map[curKey] = buf.join('\n').trim(); } buf = []; };
+  for(const ln of lines){
+    const m = ln.match(/^\s*\[([a-zA-Z]+\.[a-zA-Z]+)\]\s*$/);
+    if(m){ flush(); curKey = m[1]; }
+    else if(curKey){ buf.push(ln); }
+  }
+  flush();
+  return map;
+}
+// Frase per una chiave: dal file editabile, con fallback al prompt embedded.
+function prefBlockText(key){
+  const fromFile = parsePrefBlocks(PREF_BLOCKS)[key];
+  if(fromFile) return fromFile;
+  const fb = parsePrefBlocks(PROMPT_EMBEDDED_FALLBACKS.PREF_BLOCKS)[key];
+  return fb || '';
+}
 function buildPreferencesPromptBlock(){
   const prefs = S.tempPrefs || S.userPrefs;
   if(!prefs) return '';
   const blocks = [];
-  // Only add preference if different from default
-  if(prefs.lab === 'altered') blocks.push('- ESAMI DI LABORATORIO: riporta SOLO i valori alterati (fuori range) e i 6 obbligatori (Colesterolo totale, HDL, LDL, Trigliceridi, HbA1c, Creatinina). Per ogni categoria, se tutti nella norma scrivi solo "[Categoria]: nella norma" senza elencare i singoli esami.');
-  else blocks.push('- ESAMI DI LABORATORIO: riporta TUTTI i valori disponibili con il relativo range di normalità, inclusi quelli nella norma; NON limitarti ai soli valori patologici.');
+  // Le frasi provengono dal prompt editabile "Prompt preferenze" (prefBlockText).
+  blocks.push(prefBlockText(prefs.lab === 'altered' ? 'lab.altered' : 'lab.all'));
   if(prefs.acc !== DEFAULT_USER_PREFS.acc){
-    if(prefs.acc === 'extended') blocks.push('- ACCERTAMENTI STRUMENTALI: riporta il referto in forma estesa, includendo tutti i reperti del documento con il testo reale del referto (non parafrasato).');
-    else blocks.push('- ACCERTAMENTI STRUMENTALI: riporta in forma sintetica i soli reperti clinicamente rilevanti, ma usando il testo reale del referto (copiando/accorciando le frasi del documento), NON una parafrasi con parole tue. Se il referto non ha conclusioni esplicite, riporta i reperti descrittivi così come sono.');
+    blocks.push(prefBlockText(prefs.acc === 'extended' ? 'acc.extended' : 'acc.brief'));
   } else {
-    blocks.push('- ACCERTAMENTI STRUMENTALI: riporta i reperti usando il testo reale del referto (copiando/accorciando le frasi del documento), NON una parafrasi con parole tue. Se mancano conclusioni esplicite, riporta i reperti descrittivi come nel referto, senza riassumerli in una frase generica.');
+    blocks.push(prefBlockText('acc.default'));
   }
   if(prefs.dec !== DEFAULT_USER_PREFS.dec){
-    if(prefs.dec === 'short') blocks.push('- DECORSO CLINICO: sintesi concisa 150-250 parole, solo eventi principali e decisioni terapeutiche.');
-    else if(prefs.dec === 'long') blocks.push('- DECORSO CLINICO: racconto dettagliato 400-600 parole con eventi intermedi e ragionamento clinico.');
+    if(prefs.dec === 'short') blocks.push(prefBlockText('dec.short'));
+    else if(prefs.dec === 'long') blocks.push(prefBlockText('dec.long'));
   }
-  if(prefs.an !== DEFAULT_USER_PREFS.an){
-    if(prefs.an === 'essential') blocks.push('- ANAMNESI: essenziale, riporta TUTTE le patologie del paziente ma in forma più sintetica (frasi brevi, senza dettagli su decorsi pregressi o terapie ormai concluse, mantenendo solo le informazioni cliniche rilevanti per il quadro attuale).');
+  if(prefs.an !== DEFAULT_USER_PREFS.an && prefs.an === 'essential'){
+    blocks.push(prefBlockText('an.essential'));
   }
-  if(prefs.rac !== DEFAULT_USER_PREFS.rac){
-    if(prefs.rac === 'main') blocks.push('- RACCOMANDAZIONI: solo le principali (terapia, follow-up clinico).');
+  if(prefs.rac !== DEFAULT_USER_PREFS.rac && prefs.rac === 'main'){
+    blocks.push(prefBlockText('rac.main'));
   }
-  if(prefs.ter !== DEFAULT_USER_PREFS.ter){
-    if(prefs.ter === 'lastPlusHome') blocks.push('- TERAPIA ALLA DIMISSIONE: nella tabella della terapia alla dimissione, oltre agli ultimi farmaci prescritti durante il ricovero, includi anche i farmaci della terapia domiciliare che erano stati sospesi solo per esigenze organizzative del ricovero (es. farmaci non disponibili in reparto, sostituiti temporaneamente con equivalenti) e che il paziente dovrà riprendere dopo la dimissione.');
+  if(prefs.ter !== DEFAULT_USER_PREFS.ter && prefs.ter === 'lastPlusHome'){
+    blocks.push(prefBlockText('ter.lastPlusHome'));
   }
   if(prefs.custom && prefs.custom.trim()){
     blocks.push('- ALTRE PREFERENZE: ' + prefs.custom.trim());
   }
-  return blocks.length ? '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPREFERENZE UTENTE — applicare SEMPRE\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n' + blocks.join('\n') : '';
+  const filtered = blocks.filter(b => b && b.trim());
+  return filtered.length ? '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPREFERENZE UTENTE — applicare SEMPRE\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n' + filtered.join('\n') : '';
 }
 
 // ── buildLetterTemplate ──
@@ -3517,6 +3574,7 @@ async function bootstrapPrompts(){
       else if (varName === 'FINGERPRINT_PROMPT_V3'){ FINGERPRINT_PROMPT_V3 = f.content; FINGERPRINT_PROMPT_V2 = f.content; }
       else if (varName === 'VERIFICA_SYSTEM') VERIFICA_SYSTEM = f.content;
       else if (varName === 'ESAMI_LAB_SYS') ESAMI_LAB_SYS = f.content;
+      else if (varName === 'PREF_BLOCKS') PREF_BLOCKS = f.content;
       L.systemPromptSha[varName] = f.sha;
     }
   }
@@ -3698,6 +3756,7 @@ async function savePromptToRepo(varName, newText){
   else if (varName === 'FINGERPRINT_PROMPT_V3'){ FINGERPRINT_PROMPT_V3 = newText; FINGERPRINT_PROMPT_V2 = newText; }
   else if (varName === 'VERIFICA_SYSTEM') VERIFICA_SYSTEM = newText;
   else if (varName === 'ESAMI_LAB_SYS') ESAMI_LAB_SYS = newText;
+  else if (varName === 'PREF_BLOCKS') PREF_BLOCKS = newText;
   if (res.content) L.systemPromptSha[varName] = res.content.sha;
   return res;
 }
@@ -4949,9 +5008,9 @@ function renderConfig(){
   if(!canEdit()){ mc().innerHTML=pageHead('Editor Prompt','LetteraAI')+'<p>Riservato agli amministratori.</p>'; return; }
   if(!L.loaded){ mc().innerHTML=`<div class="loading"><span class="spinner"></span> Caricamento...</div>`; loadLibrary().then(renderConfig); return; }
   // Tab prompt con le etichette dell'originale
-  const tabs=[['DEFAULT_SYS','Prompt di sistema'],['FINGERPRINT_PROMPT_V3','Prompt estrazione decorso'],['VERIFICA_SYSTEM','Prompt verifica'],['ESAMI_LAB_SYS','Prompt esami lab']];
+  const tabs=[['DEFAULT_SYS','Prompt di sistema'],['FINGERPRINT_PROMPT_V3','Prompt estrazione decorso'],['VERIFICA_SYSTEM','Prompt verifica'],['ESAMI_LAB_SYS','Prompt esami lab'],['PREF_BLOCKS','Prompt preferenze']];
   const cur=L._cfgTab||'DEFAULT_SYS';
-  const curVal={DEFAULT_SYS,FINGERPRINT_PROMPT_V3,VERIFICA_SYSTEM,ESAMI_LAB_SYS}[cur];
+  const curVal={DEFAULT_SYS,FINGERPRINT_PROMPT_V3,VERIFICA_SYSTEM,ESAMI_LAB_SYS,PREF_BLOCKS}[cur];
   const tabBtns=tabs.map(([k,l])=>`<button class="lt-tab${cur===k?' on':''}" onclick="window.Lettere._cfgTab('${k}')">${l}</button>`).join('');
   // Lista template di libreria
   const tplRows=(_templates||[]).map(t=>{
@@ -5635,7 +5694,7 @@ window.Lettere = {
   _resetCfgEmbedded(varName){ const ta=document.getElementById('lt-cfgtext'); if(!ta)return;
     const fb=PROMPT_EMBEDDED_FALLBACKS[varName]; if(fb!==undefined){ ta.value=fb; toast('Ripristinato al default embedded (non ancora salvato).','info'); } },
   _discardCfg(){ const cur=L._cfgTab||'DEFAULT_SYS'; const ta=document.getElementById('lt-cfgtext');
-    const cv={DEFAULT_SYS,FINGERPRINT_PROMPT_V3,VERIFICA_SYSTEM,ESAMI_LAB_SYS}[cur]; if(ta){ ta.value=cv; toast('Modifiche scartate.','info'); } },
+    const cv={DEFAULT_SYS,FINGERPRINT_PROMPT_V3,VERIFICA_SYSTEM,ESAMI_LAB_SYS,PREF_BLOCKS}[cur]; if(ta){ ta.value=cv; toast('Modifiche scartate.','info'); } },
 
   // ── Editor template di libreria ──
   _editTpl(id){ renderTemplateEditor(id); },
