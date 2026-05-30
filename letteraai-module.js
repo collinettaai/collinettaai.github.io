@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   MODULO LETTERE — generatore lettere di dimissione/trasferimento (LetteraAI)
+   MODULO LETTERE — generatore lettere di dimissione (LetteraAI)
    Integrazione additiva in CollinettaAI — versione COPIA-INCOLLA (nessuna API)
 
    La LOGICA DI DOMINIO (anonimizzazione, fingerprint V3, template, override,
@@ -59,12 +59,11 @@ const CDN = {
 const WARDS = ['Stroke Unit','Clinica Neurologica','Neurologia','Neurochirurgia','Altro'];
 const TIPI = [
   { id:'dimissione',    label:'Dimissione a domicilio' },
-  { id:'trasferimento', label:'Trasferimento ad altro reparto' },
   { id:'completamento', label:'Lettera di completamento' },
 ];
 
 /* ── PROMPT (let: sovrascrivibili da repo, fallback embedded identico a standalone) ── */
-let DEFAULT_SYS = `Sei un assistente clinico esperto specializzato nella generazione di lettere di dimissione e trasferimento in italiano per reparti ospedalieri italiani. Il tuo compito è produrre una lettera completa, accurata e formattata seguendo le regole sotto.
+let DEFAULT_SYS = `Sei un assistente clinico esperto specializzato nella generazione di lettere di dimissione in italiano per reparti ospedalieri italiani. Il tuo compito è produrre una lettera completa, accurata e formattata seguendo le regole sotto.
 
 Per dati assenti dalla cartella clinica, scrivi "Non documentato." — MAI inventare informazioni cliniche.
 
@@ -145,13 +144,12 @@ NON inserire osservazioni episodiche transitorie nella diagnosi finale (es. un s
 STRUTTURA OBBLIGATORIA DELLA LETTERA
 ═══════════════════════════════════════════════════════════════
 
-[INTESTAZIONE] — usa la formula appropriata:
-- "Alla cortese attenzione del Medico Curante" (se dimissione a domicilio)
-- "Ai Colleghi della Neurologia di [SEDE]" o "Alla cortese attenzione del personale medico di [SEDE]" (se trasferimento ad altro reparto/struttura)
+[INTESTAZIONE]:
+- "Alla cortese attenzione del Medico Curante"
 
 Egregi Colleghi,
 
-dimettiamo [oppure: trasferiamo presso il Vostro Reparto] in data odierna il/la sig./sig.ra [PAZIENTE_NOME], di anni [ETÀ] ([DATA_NASCITA]), ricoverato/a presso il nostro reparto in data [DATA_INGRESSO], con diagnosi di:
+dimettiamo in data odierna il/la sig./sig.ra [PAZIENTE_NOME], di anni [ETÀ] ([DATA_NASCITA]), ricoverato/a presso il nostro reparto in data [DATA_INGRESSO], con diagnosi di:
 
 "[DIAGNOSI PRINCIPALE]. [eventuali diagnosi secondarie separate da punto, ognuna con maiuscola iniziale]"
 
@@ -336,7 +334,7 @@ REGOLE GENERALI DEL DECORSO:
 3. Cita ogni decisione terapeutica e il suo razionale ("in considerazione di [reperto], si è proceduto a [terapia/procedura]").
 4. Documenta SEMPRE la motivazione delle sospensioni di farmaci ("è stata sospesa la [farmaco] per [motivo]").
 5. Cita l'esito di ogni accertamento aggiuntivo richiesto.
-6. Concludi con lo stato del paziente alla dimissione/trasferimento ("Alla dimissione il/la paziente deambula autonomamente / è allettato/a / si alimenta per os / per via enterale, etc.").
+6. Concludi con lo stato del paziente alla dimissione ("Alla dimissione il/la paziente deambula autonomamente / è allettato/a / si alimenta per os / per via enterale, etc.").
 7. Se la cartella indica un peggioramento o una complicanza intercorrente, descrivila chiaramente con la sequenza causale.
 8. Includi gli stati clinici persistenti dedotti dai diari (delirium, depressione, agitazione, ecc.) seguendo le regole di interpretazione delle note di diario.
 
@@ -3309,95 +3307,6 @@ function buildPreferencesPromptBlock(){
 function buildLetterTemplate(){
   const diagnosi='[DIAGNOSI_PRINCIPALE]';
   const today=new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});
-  const tipo=getLetterTemplateType();
-  const ward=(document.getElementById('transferWard')?.value||'altro reparto').trim();
-
-  if(tipo==='trasferimento'){
-    return `## TEMPLATE LETTERA — TRASFERIMENTO PRESSO ALTRA STRUTTURA
-
-Genera la lettera seguendo ESATTAMENTE questa struttura. Il paziente NON viene dimesso a domicilio ma trasferito presso ${ward}. Per dati assenti: "Non documentato." — MAI inventare.
-
----
-Padova, ${today}
-
-Egregi Colleghi,
-        trasferiamo in data odierna il Sig. **[PAZIENTE_NOME]**, di anni [ETA'] (nato il [DATA_NASCITA]), ricoverato presso il nostro Reparto in data [DD/MM] u.s., presso ${ward} con diagnosi di:
-
-"${diagnosi}"
-
-**In anamnesi:** [APR dall'input — prosa continua]
-
-mRS pre-evento = [valore se presente — solo per stroke/TIA, altrimenti ometti].
-
-**Terapia domiciliare:** [farmaci pre-ricovero dall'input]
-
-[farmacoallergie se documentate, altrimenti: Non farmacoallergie note.]
-
-**Motivo del ricovero:**
-[esordio sintomatologico dall'input — passato prossimo — MAI passato remoto]
-
-Presso il Pronto Soccorso AOUP è stato sottoposto a:
-- **Esami ematochimici:** [dall'input]
-- **TC encefalo:** [dall'input]
-- **AngioTC dei vasi intracranici:** [se eseguita — altrimenti ometti]
-- **Valutazione neurologica:** [EON verbatim — NIHSS — dall'input]
-
-**Esame obiettivo neurologico all'ingresso in [REPARTO]:**
-[EON verbatim dall'input — NIHSS X]
-
-**Esame obiettivo generale all'ingresso in [REPARTO]:**
-[dall'input]
-
-Durante la degenza il paziente è stato sottoposto ai seguenti **esami ematochimici:**
-- **Emocromo con formula:** [valori o "nella norma"]
-- **Profilo coagulativo:** [dall'input]
-- **Indici di flogosi:** [dall'input]
-- **Funzionalità epatica:** [dall'input]
-- **Funzionalità renale con ionemia:** [dall'input]
-- **Profilo metabolico:** [dall'input]
-- **Profilo proteico:** [dall'input]
-- **Enzimi muscolari:** [dall'input]
-- **Albumina:** [dall'input]
-- **Profilo carenziale:** [dall'input]
-- **Funzionalità tiroidea:** [dall'input]
-- **ntBNP:** [dall'input]
-- **Esame urine:** [dall'input]
-- **Esame chimico-fisico liquorale (DD/MM):** [SOLO se presente esame del liquor/rachicentesi nell'input; aspetto, cellule, proteine, glucosio, ecc.]
-
-Sono stati inoltre eseguiti i seguenti **esami microbiologici e sierologici:**
-- **Microbiologia:** [dall'input — ogni microrganismo/anticorpo cercato con esito; colture con data (DD/MM)]
-
-e alle seguenti **indagini diagnostico-strumentali e valutazioni specialistiche:**
-- **ECG (DD/MM):** [dall'input]
-- **Rx torace (DD/MM):** [dall'input]
-- **TC encefalo (DD/MM):** [dall'input]
-- **Valutazione fisiatrica (DD/MM):** [se eseguita]
-- [altri accertamenti se presenti nell'input]
-
-**Decorso Clinico:**
-[Prosa clinica unica 150-300 parole, passato prossimo, MAI passato remoto, NESSUNA riga vuota interna — sintesi decisioni terapeutiche e andamento. Includere il motivo del trasferimento presso ${ward}.]
-
-**L'obiettività al trasferimento mostra:**
-[condizioni neurologiche e generali al trasferimento. NIHSS: XX. mRS: XX. (solo per stroke/TIA — omettere entrambi per altre patologie)]
-
-**Terapia al trasferimento:**
-
-| Farmaco | Posologia | Orario | Note |
-|---------|-----------|--------|------|
-[Una riga per farmaco — nome+dosaggio | n cp per os | 8.00 o 8.00-20.00 | terapia domiciliare / nuova terapia / nuova terapia fino a rivalutazione]
-
-Si raccomanda:
-- [raccomandazione 1]
-- [raccomandazione 2]
-- [raccomandazione N — una per riga, con trattino breve (-), basate sull'input]
-
-Rimaniamo a disposizione e porgiamo cordiali saluti.
-
-[FIRMA_MEDICO_FORMAZIONE]                     [FIRMA_DIRIGENTE]
-(medici in formazione specialistica)            (Dirigente medico)
-
----`;
-  }
 
   // Default: DIMISSIONE DIRETTA
   return `## TEMPLATE LETTERA — DIMISSIONE DIRETTA DA [REPARTO]
@@ -4419,13 +4328,10 @@ function wizStep3Combined(){
   // ── Card 1: Modello di lettera (tile selezionabili) ──
   const tile=(id,icon,label)=>`<label class="lt-tile${w.tipo===id?' on':''}" onclick="window.Lettere._setTipo('${id}')">
     <span class="lt-tile-l">${icon} ${label}</span></label>`;
-  const transferRow = w.tipo==='trasferimento' ? `
-    <div class="field" style="margin-top:10px"><label>Struttura / reparto di destinazione</label>
-      <input type="text" value="${escapeHtml(w.transferWard||'')}" placeholder="es. Riabilitazione Neurologica, Ospedale di Vicenza" oninput="window.Lettere._set('transferWard', this.value)"></div>` : '';
   const cardModello=`<div class="lt-card-static">
     <div class="lt-side-title">Modello di lettera</div>
-    <div class="lt-tiles">${tile('dimissione','🏠','Dimissione')}${tile('trasferimento','🏥','Trasferimento')}${tile('esami_lab','🧪','Esami Lab')}</div>
-    ${transferRow}</div>`;
+    <div class="lt-tiles">${tile('dimissione','🏠','Dimissione')}${tile('esami_lab','🧪','Esami Lab')}</div>
+    </div>`;
   const isLab = w.tipo==='esami_lab';
 
   // ── Card 2: Caso di riferimento (tab auto/manuale/nessuno + inject) ──
@@ -4947,7 +4853,7 @@ function renderImpostazioni(){
 
     <div class="lt-card-static">
       <div class="lt-side-title">Aggiunte personali alle regole (override additivo)</div>
-      <p class="lt-status" style="margin:0 0 10px">Regole aggiuntive applicate sempre, in coda al system prompt. Salvate in <code>${PATHS.userOverrides}${escapeHtml(username())}.md</code></p>
+      <p class="lt-status" style="margin:0 0 10px">Regole aggiuntive applicate sempre, in coda al system prompt.</p>
       <textarea id="lt-uoverride" rows="10" class="mono-input" placeholder="AGGIUNTE PERSONALI:&#10;- Per FA cronica includere sempre HAS-BLED nel decorso&#10;- ...">${escapeHtml(_userOverride||'')}</textarea>
       <div class="lt-row" style="margin-top:10px;justify-content:flex-end;gap:8px">
         <button class="btn ghost" onclick="window.Lettere._discardOverride()">✕ Scarta modifiche</button>
@@ -5063,7 +4969,6 @@ function renderConfig(){
     <div class="lt-card-static">
       <div class="lt-side-title">Prompt globali</div>
       <div class="lt-tabs" style="margin-bottom:12px">${tabBtns}</div>
-      <div class="lt-status" style="margin-bottom:6px">Salvato in <code>${escapeHtml(PROMPT_PATHS[cur]||'')}</code></div>
       <textarea id="lt-cfgtext" rows="20" class="mono-input">${escapeHtml(curVal)}</textarea>
       <div class="lt-row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
         <button class="btn" onclick="window.Lettere._saveCfg('${cur}')">Salva</button>
