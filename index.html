@@ -9,16 +9,22 @@
 // La cache viene popolata da applyTheme/applyFontSize ed è solo per-sessione.
 (function() {
   try {
-    var theme = sessionStorage.getItem('collinettaai.theme-cache') || 'auto';
+    // localStorage sopravvive tra avvii (incluso cold start PWA): se l'utente ha già
+    // scelto un tema, lo applichiamo SUBITO senza aspettare la fetch di userPrefs da
+    // GitHub. Senza questo, al primo avvio si ripiega su 'auto' (= schema del sistema)
+    // e si vede un flash del tema sbagliato (es. dark) prima del cambio a light.
+    var theme = localStorage.getItem('collinettaai.theme-pref')
+             || sessionStorage.getItem('collinettaai.theme-cache') || 'auto';
     var effective = theme;
     if (theme === 'auto') {
       effective = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
     }
     document.documentElement.setAttribute('data-theme', effective);
     document.documentElement.setAttribute('data-theme-pref', theme);
-    var font = sessionStorage.getItem('collinettaai.font-cache') || 'md';
+    var font = localStorage.getItem('collinettaai.font-pref')
+            || sessionStorage.getItem('collinettaai.font-cache') || 'md';
     document.documentElement.setAttribute('data-font-size', font);
-  } catch (e) { /* sessionStorage non disponibile, fallback ai default CSS */ }
+  } catch (e) { /* storage non disponibile, fallback ai default CSS */ }
 })();
 </script>
 <meta charset="UTF-8">
@@ -3175,8 +3181,23 @@ function handleContattoRowClick(contattoId, evt) {
     _navigateOutOfRubricaSearch('numeri', { filter: contattoId });
     return;
   }
-  // Sono già dentro questa UOC?
-  const alreadyInsideUoc = (currentFilter === ownerGroup.id) || (currentFilter === contattoId);
+  // Sono già dentro questa UOC? currentFilter può essere l'id della UOC stessa OPPURE
+  // l'id di un contatto (se sono arrivato qui cliccando un contatto: in quel caso la vista
+  // mostra comunque l'INTERA UOC di quel contatto). Risolvo currentFilter al suo gruppo
+  // proprietario e confronto i gruppi: così cliccare un altro contatto della stessa UOC
+  // (o di nuovo lo stesso) NON ri-naviga né ri-scrolla con animazione/illuminazione inutile.
+  let currentGroup = null;
+  if (currentFilter) {
+    for (const sourceId of ['aopd','osa','iov']) {
+      const data = (typeof getNumeriDataForSource === 'function') ? getNumeriDataForSource(sourceId) : null;
+      if (!data) continue;
+      for (const g of (data.gruppi || [])) {
+        if (g.id === currentFilter || (g.contatti || []).some(x => x.id === currentFilter)) { currentGroup = g; break; }
+      }
+      if (currentGroup) break;
+    }
+  }
+  const alreadyInsideUoc = !!currentGroup && currentGroup.id === ownerGroup.id;
   if (alreadyInsideUoc && state.currentView === 'numeri') {
     // Mostro mini-menu di azioni invece di re-renderare
     showContattoActionMenu(contattoId, evt);
@@ -3945,6 +3966,8 @@ function clearSession() {
   try {
     sessionStorage.removeItem('collinettaai.theme-cache');
     sessionStorage.removeItem('collinettaai.font-cache');
+    localStorage.removeItem('collinettaai.theme-pref');
+    localStorage.removeItem('collinettaai.font-pref');
   } catch {}
   state.session = null;
 }
@@ -4742,17 +4765,19 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', effective);
   // Memorizzo la scelta utente (auto/light/dark) per il listener prefers-color-scheme
   document.documentElement.setAttribute('data-theme-pref', theme || 'auto');
-  // Cache in sessionStorage: il prossimo refresh nella stessa sessione applica subito
-  // il tema giusto, senza aspettare la fetch di userPrefs da GitHub.
+  // Cache in sessionStorage + localStorage: il prossimo refresh (anche cold start PWA)
+  // applica subito il tema giusto, senza aspettare la fetch di userPrefs da GitHub.
   try { sessionStorage.setItem('collinettaai.theme-cache', theme || 'auto'); } catch {}
+  try { localStorage.setItem('collinettaai.theme-pref', theme || 'auto'); } catch {}
   // Aggiorno UI dei pulsanti scelta tema
   document.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('active', b.dataset.theme === (theme || 'auto')));
 }
 function applyFontSize(size) {
   if (!FONT_SIZES.includes(size)) size = 'md';
   document.documentElement.setAttribute('data-font-size', size);
-  // Cache anche il font_size per evitare layout shift al refresh
+  // Cache anche il font_size per evitare layout shift al refresh / cold start
   try { sessionStorage.setItem('collinettaai.font-cache', size); } catch {}
+  try { localStorage.setItem('collinettaai.font-pref', size); } catch {}
   const label = document.getElementById('font-size-label');
   if (label) label.textContent = FONT_LABELS[size];
   const btns = document.querySelectorAll('.font-step-btn');
@@ -4767,9 +4792,15 @@ function initTheme() {
   // Le preferenze tema/font ora vivono nel repo dati (userPrefs).
   try { localStorage.removeItem('collinetta-theme'); } catch {}
   try { localStorage.removeItem('collinetta-font-size'); } catch {}
-  // Pre-login: usa default. Le preferenze utente verranno applicate da userPrefs.load() al login.
-  applyTheme('auto');
-  applyFontSize('md');
+  // Pre-login: applico la preferenza già salvata (localStorage), così su refresh il tema
+  // resta quello scelto dall'utente. NON forzo 'auto': forzarlo sovrascriverebbe il tema
+  // corretto applicato dallo script anti-FOUC, causando il flash dark→light prima che
+  // userPrefs.load() ripristini la preferenza reale.
+  let _bootTheme = 'auto', _bootFont = 'md';
+  try { _bootTheme = localStorage.getItem('collinettaai.theme-pref') || 'auto'; } catch {}
+  try { _bootFont = localStorage.getItem('collinettaai.font-pref') || 'md'; } catch {}
+  applyTheme(_bootTheme);
+  applyFontSize(_bootFont);
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       // Se la preferenza utente è "auto", aggiorno il tema effettivo quando il sistema cambia
@@ -19232,10 +19263,12 @@ setTimeout(() => {
   var L=function(x1,y1,x2,y2,w,c,cap){return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="'+w+'" stroke-linecap="'+(cap||'round')+'"/>';};
   var gHam=document.getElementById('cl-ham'),gFork=document.getElementById('cl-fork'),wm=document.getElementById('cl-wm');
   if(!gHam||!gFork){ return; }
-  var cs=getComputedStyle(document.documentElement);
-  function cssVar(n,fb){ var v=(cs.getPropertyValue(n)||"").trim(); return v||fb; }
-  var INK=cssVar('--ink','#1A1A1A'), BG=cssVar('--bg','#F6F2EA');
-  if(wm) wm.setAttribute('fill', INK);
+  // Uso le CSS variables direttamente nei fill SVG (non valori hex risolti una sola volta):
+  // così i colori seguono il tema in tempo reale. Senza questo, se il tema cambiava
+  // dark→light DOPO il disegno dell'SVG, i fill restavano quelli vecchi e le lettere/oggetti
+  // diventavano invisibili (stesso colore del nuovo sfondo).
+  var INK='var(--ink)', BG='var(--bg)';
+  if(wm){ wm.setAttribute('fill', INK); wm.style.fill = INK; }
 
   function fork(col,infl){
     var sa = infl>0?' stroke="'+col+'" stroke-width="'+(2*infl)+'" stroke-linejoin="round" stroke-linecap="round"':'';
