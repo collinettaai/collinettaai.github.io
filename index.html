@@ -1661,9 +1661,11 @@ body.search-overlay-open #search-overlay{touch-action:pan-y;overscroll-behavior-
      html.splash-done. Logo neutrale + spinner. Coerente con design system. -->
 <div id="boot-splash" aria-hidden="true">
   <div class="boot-splash-inner">
-    <img src="icons/logo-light.png?v=2" alt="" class="boot-splash-logo boot-splash-logo-light">
-    <img src="icons/logo-dark.png?v=2" alt="" class="boot-splash-logo boot-splash-logo-dark">
-    <div class="boot-splash-spinner" aria-label="Caricamento"></div>
+    <svg id="cl-svg" viewBox="0 0 380 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CollinettaAI" style="width:min(440px,84vw);height:auto;display:block">
+      <g id="cl-ham"></g>
+      <g id="cl-fork"></g>
+      <text id="cl-wm" x="190" y="108" text-anchor="middle" textLength="150" lengthAdjust="spacingAndGlyphs" font-size="33" style="font-family:var(--serif,'Fraunces','Times New Roman',serif);font-style:italic;font-weight:500">CollinettaAI</text>
+    </svg>
   </div>
 </div>
 
@@ -19036,6 +19038,7 @@ async function init() {
  */
 function hideBootSplash() {
   if (document.documentElement.classList.contains('splash-done')) return;
+  if (window.CollinettaSplash) window.CollinettaSplash.finish();
   document.documentElement.classList.add('splash-done');
   setTimeout(() => {
     document.documentElement.classList.add('splash-removed');
@@ -19052,5 +19055,83 @@ setTimeout(() => {
   }
 }, 8000);
 </script>
+
+<script>
+/* CollinettaAI - animazione splash (emblema diapason + martelletto Tromner) */
+(function(){
+  "use strict";
+  var W=6,CW=1.7,CX=190,CY=100,SF=0.95,SS=0.36,FX=100,HX=280;
+  var A=300,HOLD=1080,B=1900,CYC=1250,SETTLE=300;
+  var gHam=document.getElementById('cl-ham'),gFork=document.getElementById('cl-fork'),wm=document.getElementById('cl-wm');
+  if(!gHam||!gFork){ return; }
+  var cs=getComputedStyle(document.documentElement);
+  function cssVar(n,fb){ var v=(cs.getPropertyValue(n)||"").trim(); return v||fb; }
+  var INK=cssVar('--ink','#1A1A1A'), BG=cssVar('--bg','#F6F2EA');
+  if(wm) wm.setAttribute('fill', INK);
+
+  function fork(col,w){
+    var d=(w-W)*0.5, fw=12.5+2*d, fh=5.8+2*d, fx=(50-fw/2), fy=89.3-fh/2, r=(w*0.5+1.7);
+    return '<rect x="'+fx+'" y="'+fy+'" width="'+fw+'" height="'+fh+'" rx="'+(fh/2)+'" fill="'+col+'"/>'
+      +'<line x1="50" y1="88" x2="50" y2="56" stroke="'+col+'" stroke-width="'+w+'" stroke-linecap="round"/>'
+      +'<path d="M42 24 L42 49 Q42 56 50 56 Q58 56 58 49 L58 24" fill="none" stroke="'+col+'" stroke-width="'+w+'" stroke-linecap="round" stroke-linejoin="round"/>'
+      +'<circle cx="42" cy="24" r="'+r+'" fill="'+col+'"/><circle cx="58" cy="24" r="'+r+'" fill="'+col+'"/>';
+  }
+  function hammer(col,w){
+    var d=(w-W)*0.5, knob=4.0+d, cb=7.5+2*d, eye=2.4+d;
+    return '<line x1="50" y1="88" x2="50" y2="26" stroke="'+col+'" stroke-width="'+w+'" stroke-linecap="round"/>'
+      +'<ellipse cx="50" cy="74" rx="'+(5+d)+'" ry="'+(18+d)+'" fill="'+col+'"/>'
+      +'<circle cx="50" cy="93" r="'+eye+'" fill="'+col+'"/>'
+      +'<line x1="39" y1="26" x2="61" y2="26" stroke="'+col+'" stroke-width="'+cb+'" stroke-linecap="round"/>'
+      +'<line x1="50" y1="26" x2="50" y2="20.5" stroke="'+col+'" stroke-width="'+w+'" stroke-linecap="round"/>'
+      +'<circle cx="50" cy="20" r="'+knob+'" fill="'+col+'"/>'
+      +'<circle cx="35.5" cy="26" r="'+(5.8+d)+'" fill="'+col+'"/><circle cx="64.5" cy="26" r="'+(4.8+d)+'" fill="'+col+'"/>';
+  }
+  gHam.innerHTML  = hammer(BG, W+CW) + hammer(INK, W);
+  gFork.innerHTML = fork(BG, W+CW)   + fork(INK, W);
+
+  function setT(el,px,ang,s){ el.setAttribute('transform','translate('+px.toFixed(2)+' '+CY+') rotate('+ang.toFixed(2)+') scale('+s.toFixed(3)+') translate(-50 -60)'); }
+  var curr={fpx:FX,hpx:HX,fang:0,hang:0,s:SS,op:0,top:0};
+  function place(fpx,hpx,fang,hang,s,op,top){
+    curr={fpx:fpx,hpx:hpx,fang:fang,hang:hang,s:s,op:op,top:top};
+    setT(gHam,hpx,hang,s); setT(gFork,fpx,fang,s);
+    gHam.style.opacity=op; gFork.style.opacity=op; if(wm) wm.style.opacity=top;
+  }
+  function lerp(a,b,k){ return a+(b-a)*k; }
+  function eo(x){ return 1-Math.pow(1-x,3); }
+  function easeLoop(x){ return x<0.5 ? Math.pow(2*x,2.6)/2 : 1-Math.pow(2-2*x,2.6)/2; }
+  function snap(a,base){ return base+360*Math.round((a-base)/360); }
+
+  var reduce=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var raf=null,t0=null,mode='run',sFrom=null,sTo=null,sStart=0,done=false;
+
+  function frame(ts){
+    if(mode==='settle'){
+      var k=eo(Math.min(1,(ts-sStart)/SETTLE));
+      place(lerp(sFrom.fpx,sTo.fpx,k),lerp(sFrom.hpx,sTo.hpx,k),lerp(sFrom.fang,sTo.fang,k),lerp(sFrom.hang,sTo.hang,k),lerp(sFrom.s,sTo.s,k),1,lerp(sFrom.top,0,k));
+      if(k>=1){ done=true; raf=null; return; }
+      raf=requestAnimationFrame(frame); return;
+    }
+    if(t0===null) t0=ts;
+    var t=ts-t0;
+    if(t<A){ var o=t/A; place(FX,HX,0,0,SS,o,o); }
+    else if(t<HOLD){ place(FX,HX,0,0,SS,1,1); }
+    else if(t<B){ var e=eo((t-HOLD)/(B-HOLD)); place(FX+(CX-FX)*e,HX+(CX-HX)*e,400*e,-400*e,SS+(SF-SS)*e,1,Math.max(0,1-e/0.55)); }
+    else { var tt=t-B,tau=(tt%CYC)/CYC,spin=360*easeLoop(tau); place(CX,CX,40+spin,-40-spin,SF,1,0); }
+    raf=requestAnimationFrame(frame);
+  }
+  function startSettle(){
+    if(done||mode==='settle') return;
+    sFrom={fpx:curr.fpx,hpx:curr.hpx,fang:curr.fang,hang:curr.hang,s:curr.s,top:curr.top};
+    sTo={fpx:CX,hpx:CX,fang:snap(curr.fang,40),hang:snap(curr.hang,-40),s:SF,top:0};
+    sStart=performance.now(); mode='settle';
+    if(!raf) raf=requestAnimationFrame(frame);
+  }
+  window.CollinettaSplash={ finish:function(){ if(!reduce) startSettle(); } };
+
+  if(reduce){ place(CX,CX,40,-40,SF,1,0); }
+  else { place(FX,HX,0,0,SS,0,0); raf=requestAnimationFrame(frame); }
+})();
+</script>
+
 </body>
 </html>
