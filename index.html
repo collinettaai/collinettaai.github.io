@@ -18650,6 +18650,10 @@ function initMobileDrawer() {
   const HORIZ_TOLERANCE = 40;      // px max orizzontale tollerato per pull-down
   document.addEventListener('touchstart', (e) => {
     if (!isMobileViewport()) return;
+    // Splash di boot ancora visibile: ignoro i gesti (swipe sidebar / pull-down ricerca).
+    // Durante il boot l'app-view è già nel DOM sotto lo splash, e uno swipe verso il basso
+    // poteva attivare il pull-down che mette a fuoco la ricerca → tastiera aperta sullo splash.
+    if (!document.documentElement.classList.contains('splash-removed')) { touchStart = null; return; }
     const t = e.touches[0];
     if (!t) return;
     const edgeZone = window.innerWidth / 2;
