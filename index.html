@@ -4859,6 +4859,9 @@ function logout() {
 */
 const urlRouter = (function() {
   let _suppress = false; // evita loop navigate→hashchange→navigate
+  // Mappa posizione-scroll per indice di history (pos). Tenuta separata da history.state
+  // così non interferisce col tracking pos/guard delle frecce avanti/indietro.
+  const _scrollByPos = {};
 
   // Mappa interna route+params → segmenti URL
   function _routeToSegments(route, params) {
@@ -4986,13 +4989,9 @@ const urlRouter = (function() {
         // così la cronologia non accumula entry duplicate della stessa scheda.
         window.history.replaceState({ route, params, pos: (_historyPos || 0) }, '', newHash);
       } else {
-        // Prima di aggiungere la nuova entry, salvo la posizione di scroll CORRENTE
-        // nell'entry corrente (via replaceState), così quando l'utente torna indietro
-        // qui possiamo ripristinare il punto esatto in cui si trovava.
-        try {
-          const curState = window.history.state || {};
-          window.history.replaceState({ ...curState, scrollY: window.scrollY || window.pageYOffset || 0 }, '', window.location.href);
-        } catch {}
+        // Salvo la posizione di scroll corrente nella mappa per-pos (NON in history.state,
+        // per non interferire con il tracking pos/guard delle frecce avanti/indietro).
+        try { _scrollByPos[_historyPos || 0] = window.scrollY || window.pageYOffset || 0; } catch {}
         // Uso pushState così il browser registra l'entry per il bottone indietro.
         // Salvo nello state la posizione (pos) per sapere se siamo andati avanti/indietro
         // a seguito di popstate (necessario per abilitare/disabilitare pulsanti freccia).
@@ -5103,9 +5102,10 @@ const urlRouter = (function() {
     // l'URL è GIÀ quello corretto. navigate NON deve fare un nuovo pushState (che
     // resetterebbe _historyMax e romperebbe la freccia avanti, specie tornando alla
     // prima pagina con hash vuoto).
-    // restoreScrollY: ripristina la posizione di scroll salvata nell'entry quando
+    // restoreScrollY: ripristina la posizione di scroll salvata per questa entry quando
     // ci eravamo allontanati, così back/forward riportano al punto esatto della pagina.
-    const _rsY = (e.state && typeof e.state.scrollY === 'number') ? e.state.scrollY : 0;
+    // _onHistoryPop ha già aggiornato _historyPos alla posizione di destinazione.
+    const _rsY = _scrollByPos[_historyPos || 0] || 0;
     navigate(route, params, { fromHistory: true, restoreScrollY: _rsY });
     // navigate(fromHistory) non passa per _onHistoryPush, quindi la guardia non si è
     // riarmata. Se siamo atterrati in zona protetta (es. home in PWA), riarmo qui.
@@ -5135,12 +5135,10 @@ const urlRouter = (function() {
     // anche quando la navigazione non passa da updateUrl (es. back nativo del browser).
     let _scrollSaveRaf = 0;
     const _persistScroll = () => {
-      if (_suppress) return;
       _scrollSaveRaf = 0;
-      try {
-        const curState = window.history.state || {};
-        window.history.replaceState({ ...curState, scrollY: window.scrollY || window.pageYOffset || 0 }, '', window.location.href);
-      } catch {}
+      // Salvo nella mappa per-pos, NON in history.state: così le frecce avanti/indietro
+      // (che leggono pos da history.state) non vengono mai disturbate.
+      try { _scrollByPos[_historyPos || 0] = window.scrollY || window.pageYOffset || 0; } catch {}
     };
     window.addEventListener('scroll', () => {
       if (_scrollSaveRaf) return;
