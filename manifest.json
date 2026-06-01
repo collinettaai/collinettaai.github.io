@@ -1,7 +1,7 @@
 {
   "name": "CollinettaAI",
   "short_name": "CollinettaAI",
-  "id": "/CollinettaAI/",
+  "id": "/",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
