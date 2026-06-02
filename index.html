@@ -4407,14 +4407,14 @@ function rebuildSearchIndex() {
     titolo: p.titolo || p.slug,
     tag: (p.tag || []).join(' '),
     termini: (p.termini_equivalenti || []).join(' '),
-    body: p.body_preview || ''
+    body: ''
   }));
   (state.index.clinica || []).forEach(c => docs.push({
     type: 'clinica', slug: c.slug,
     titolo: c.titolo || c.slug,
     tag: (c.tag || []).join(' '),
     termini: (c.termini_equivalenti || []).join(' '),
-    body: c.body_preview || ''
+    body: ''
   }));
   state.index.moduli.forEach(m => docs.push({
     type: 'modulo', slug: m.slug,
@@ -4424,7 +4424,7 @@ function rebuildSearchIndex() {
     // termini-tipo nello STESSO campo (tag), così l'AND per-campo trova entrambi i token.
     tag: ((m.tag || []).join(' ') + ' ' + (m.titolo || m.slug) + ' ' + (m.descrizione || '') + ' modulo moduli modulistica').trim(),
     termini: 'modulo moduli modulistica',
-    body: m.descrizione || ''  // descrizione compilabile come body searchable
+    body: ''
   }));
   getVisibleNumeriGroups().filter(g => (g._source || 'aopd') === 'aopd').forEach(g => {
     const groupTags = (g.tag || []).join(' ');
