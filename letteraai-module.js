@@ -59,7 +59,7 @@ const CDN = {
 
 const WARDS = ['Stroke Unit','Clinica Neurologica','Neurologia','Neurochirurgia','Altro'];
 const TIPI = [
-  { id:'dimissione',    label:'Dimissione a domicilio' },
+  { id:'dimissione',    label:'Dimissione' },
   { id:'completamento', label:'Lettera di completamento' },
 ];
 
@@ -4696,9 +4696,12 @@ function renderLibreria(){
   // Filtro per reparto (come l'originale): __all__ tutti, __none__ senza reparto, oppure nome reparto
   const wardFilter = L._libWardFilter || '__all__';
   const wardNames = (L.wards||[]).map(w=>w.name).filter(Boolean);
-  const filterOpts = `<option value="__all__"${wardFilter==='__all__'?' selected':''}>Tutti i reparti</option>` +
-    `<option value="__none__"${wardFilter==='__none__'?' selected':''}>— Senza reparto</option>` +
-    wardNames.map(n=>`<option value="${escapeHtml(n)}"${wardFilter===n?' selected':''}>${escapeHtml(n)}</option>`).join('');
+  const totCasi = L.casi.length;
+  const nSenzaReparto = L.casi.filter(c=>!wardName(c)).length;
+  const nByWard = (n)=> L.casi.filter(c=>wardName(c)===n).length;
+  const filterOpts = `<option value="__all__"${wardFilter==='__all__'?' selected':''}>Tutti i reparti (${totCasi})</option>` +
+    `<option value="__none__"${wardFilter==='__none__'?' selected':''}>— Senza reparto (${nSenzaReparto})</option>` +
+    wardNames.map(n=>`<option value="${escapeHtml(n)}"${wardFilter===n?' selected':''}>${escapeHtml(n)} (${nByWard(n)})</option>`).join('');
   // Casi filtrati — il reparto si risolve via wardName(c) (wardId → nome), MAI via folder
   const casiFiltrati = L.casi.filter(c=>{
     if(wardFilter==='__all__') return true;
@@ -4765,11 +4768,8 @@ function renderLibreria(){
   mc().innerHTML=pageHead('Libreria Casi', lettereBreadcrumb([{label:'Libreria Casi', route:'lettere-libreria'}]))+`
     <div class="lt-card-static">
       <div class="lt-row" style="justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span class="lt-status">${casiFiltrati.length} cas${casiFiltrati.length===1?'o':'i'}${wardFilter!=='__all__'?' (filtrati)':''} · ${(L.wards||[]).length} repart${(L.wards||[]).length===1?'o':'i'}</span>
-        <div class="lt-row" style="align-items:center;gap:8px">
-          <label style="margin:0;white-space:nowrap">🏥 Reparto</label>
-          <select onchange="window.Lettere._setLibWardFilter(this.value)" style="min-width:160px">${filterOpts}</select>
-          ${addCaseBtn}</div>
+        <select onchange="window.Lettere._setLibWardFilter(this.value)" style="min-width:160px">${filterOpts}</select>
+        ${addCaseBtn}
       </div>
       <div class="lt-lib-grid">${cards}</div>
     </div>` +
@@ -4830,19 +4830,29 @@ function renderAddCaseForm(){
     <div class="field"><label>Nome / Diagnosi</label>
       <input type="text" id="nc-name" placeholder='Es: "Stroke ischemico ACM dx"'></div>
     <div class="lt-row">
-      <div class="field" style="flex:1"><label>Reparto <span class="lt-sub">(opzionale)</span></label>
+      <div class="field" style="flex:1"><label>Reparto</label>
         <select id="nc-wardid">${wardOpts}</select></div>
       <div class="field" style="flex:1"><label>Tipo</label>
         <select id="nc-tipo">${tipoOpts}</select></div>
     </div>
-    <div class="field"><label>Cartella clinica anonimizzata <span class="lt-sub">(opzionale)</span></label>
+    <div class="field"><label>Cartella clinica anonimizzata</label>
       <textarea id="nc-cartella" rows="6" class="mono-input" placeholder="Incolla la cartella anonimizzata..."></textarea></div>
+    <div class="field"><label>Esami di laboratorio <span class="lt-sub">(opzionale)</span></label>
+      <div class="lt-dropzone" onclick="document.getElementById('nc-xls').click()"
+        ondragover="event.preventDefault();this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="event.preventDefault();this.classList.remove('drag');window.Lettere._onXlsNuovoCaso(event.dataTransfer.files[0])">
+        <input type="file" id="nc-xls" accept=".xls,.xlsx,.csv" style="display:none" onchange="window.Lettere._onXlsNuovoCaso(this.files[0])">
+        <div class="lt-dz-ic">🧪</div>
+        <div class="lt-dz-txt"><strong>Clicca o trascina XLS</strong></div>
+      </div>
+      <div id="nc-xls-status" class="lt-dz-status" style="display:none;margin-bottom:8px"><span id="nc-xls-status-txt"></span></div>
+      <textarea id="nc-lab" rows="5" class="mono-input" placeholder="Incolla gli esami di laboratorio, oppure caricali dal file XLS qui sopra..."></textarea></div>
     <div class="field"><label>Lettera di dimissione corrispondente <span id="nc-letter-badge" class="lt-lib-chip on" style="display:none">✓ rilevata dal PDF</span></label>
       <textarea id="nc-letter" rows="8" class="mono-input" placeholder="Incolla la lettera già generata e revisionata..."></textarea></div>
     <div class="field"><label>Logica decorso</label>
-      <div class="lt-sub" style="margin-bottom:6px">Cattura <em>come</em> generare il decorso clinico: il resto della lettera è stabile per il template del reparto, il decorso è ciò che varia.</div>
       <div class="lt-row" style="margin-bottom:6px">
-        <button class="btn ghost sm" onclick="window.Lettere._copyFpPromptNuovo()">⎘ Copia prompt logica decorso</button></div>
+        <button class="btn ghost sm" onclick="window.Lettere._copyFpPromptNuovo()">⎘ Copia prompt per generare la logica del decorso clinico</button></div>
       <textarea id="nc-fp" rows="5" class="mono-input" placeholder='{"patologia":"...","decorso_esempio":"..."}'></textarea></div>
     <div class="lt-row" style="justify-content:flex-end;gap:8px;margin-top:14px">
       <button class="btn" onclick="window.Lettere._saveNuovoCaso()">✓ Salva caso</button>
@@ -5331,7 +5341,17 @@ window.Lettere = {
       if(txt) txt.textContent= letter ? `✓ PDF letto · lettera rilevata (${letter.length.toLocaleString('it-IT')} caratteri)` : '✓ PDF letto · lettera NON rilevata, incollala manualmente';
     }catch(e){ if(txt) txt.textContent='Errore PDF: '+e.message; }
   },
-  // Copia il prompt per estrarre il fingerprint, usando cartella+lettera del form di inserimento diretto
+  // Carica un file XLS/CSV nel form Aggiungi Caso e popola il textarea esami di laboratorio
+  async _onXlsNuovoCaso(file){ if(!file)return;
+    const box=document.getElementById('nc-xls-status'); const txt=document.getElementById('nc-xls-status-txt');
+    if(box) box.style.display='block'; if(txt) txt.textContent='Lettura esami…';
+    try{
+      const rows=await extractXlsRows(file);
+      const out=xlsToRawText(rows, file.name||'');
+      const ta=document.getElementById('nc-lab'); if(ta) ta.value=out.text||'';
+      if(txt) txt.textContent=`✓ ${out.examCount||0} esami estratti da ${file.name}`;
+    }catch(e){ if(txt) txt.textContent='Errore XLS: '+e.message; }
+  },
   async _copyFpPromptNuovo(){
     const cartella=((document.getElementById('nc-cartella')||{}).value||'').trim();
     const lettera=((document.getElementById('nc-letter')||{}).value||'').trim();
@@ -5349,7 +5369,9 @@ window.Lettere = {
     if(!letter){ toast('La lettera è obbligatoria.','error'); return; }
     const wardId=get('nc-wardid');
     const tipo=get('nc-tipo')||'dimissione';
-    const cartella=get('nc-cartella');
+    let cartella=get('nc-cartella');
+    const lab=get('nc-lab').trim();
+    if(lab){ cartella=(cartella.trim()?cartella.trim()+'\n\n':'')+lab; }
     const fingerprint=get('nc-fp').trim();
     const doSave=async()=>{ try{
         await saveCaso({ name, diagnosi:name, wardId:wardId||undefined, tipo, cartella, lettera:letter, fingerprint });
