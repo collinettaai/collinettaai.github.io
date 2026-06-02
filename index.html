@@ -404,7 +404,7 @@ html[data-theme="dark"]{
 .rate-limit-pill.danger{background:var(--danger-soft);color:var(--danger);border-color:var(--danger)}
 
 /* Edit mode */
-.edit-banner{position:fixed;top:var(--topbar-height);left:0;right:0;z-index:40;display:flex;justify-content:space-between;align-items:center;padding:10px 24px;background:var(--accent-soft);border-bottom:1px solid var(--accent);color:var(--accent);font-size:13px;gap:12px;flex-wrap:wrap;max-height:80px;box-sizing:border-box;overflow:hidden}
+.edit-banner{position:fixed;top:calc(var(--topbar-height) - 1px);left:0;right:0;z-index:40;display:flex;justify-content:space-between;align-items:center;padding:10px 24px;background:var(--accent-soft);border-bottom:1px solid var(--accent);color:var(--accent);font-size:13px;gap:12px;flex-wrap:wrap;max-height:80px;box-sizing:border-box;overflow:hidden}
 .edit-banner-text{display:inline-flex;align-items:center;gap:8px;font-weight:500;min-width:0;flex:1}
 /* Label swap: full visibile su desktop, short su mobile */
 .banner-label-full{display:inline}
@@ -502,7 +502,7 @@ body.edit-mode .nav-edit-actions.menu-open{display:inline-flex}
 .btn-icon-mini:hover{background:var(--rule-soft);color:var(--ink)}
 
 /* Context menu (popover) */
-.context-menu{position:absolute;background:var(--bg-paper);border:1px solid var(--rule-strong);border-radius:2px;box-shadow:0 2px 8px rgba(0,0,0,.06);min-width:160px;z-index:200;padding:4px 0;font-size:13px}
+.context-menu{position:fixed;background:var(--bg-paper);border:1px solid var(--rule-strong);border-radius:2px;box-shadow:0 2px 8px rgba(0,0,0,.06);min-width:160px;z-index:200;padding:4px 0;font-size:13px}
 .context-menu-item{padding:7px 14px;cursor:pointer;color:var(--ink);transition:background .1s}
 .context-menu-item:hover{background:var(--accent-soft);color:var(--accent)}
 .context-menu-item.danger{color:var(--danger)}
@@ -1054,7 +1054,11 @@ body.is-dragging-modulo-box{touch-action:none;overscroll-behavior:none;user-sele
    (per la scala del font), che rompe position:sticky dei discendenti facendo "scomparire"
    la barra allo scroll. Con fixed resta ancorata sotto la topbar; uno spacer (.editor-head-spacer)
    di pari altezza, misurato in JS, evita che il contenuto finisca sotto la barra. */
-.editor-head{position:fixed;top:var(--topbar-height, 64px);left:240px;right:0;z-index:30;background:var(--accent-soft);border-bottom:1px solid var(--accent);padding:8px 48px;display:flex;flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap}
+.editor-head{position:fixed;top:calc(var(--topbar-height, 64px) - 1px);left:240px;right:0;z-index:41;background:var(--accent-soft);border-bottom:1px solid var(--accent);padding:8px 48px;display:flex;flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap}
+/* Se è attiva anche la modalità modifica globale (banner blu sotto la topbar), l'editor-head
+   della scheda si posiziona SOTTO il banner invece di sovrapporsi (prima restava coperto dal
+   banner, mostrando solo una sottile striscia con undo/redo nascosti). */
+body.edit-mode .editor-head{top:calc(var(--topbar-height, 64px) + var(--edit-banner-height, 44px) - 1px)}
 .editor-head-spacer{height:var(--editor-head-height, 48px)}
 .editor-head-main{min-width:0;flex:1}
 .editor-head-sub{font-size:12px;color:var(--accent);opacity:.85;font-family:var(--mono);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1066,7 +1070,7 @@ body.is-dragging-modulo-box{touch-action:none;overscroll-behavior:none;user-sele
   .editor-head{left:0}
 }
 @media (max-width:600px){
-  .editor-head{top:var(--topbar-height, 56px);padding:7px 16px;gap:6px;flex-wrap:nowrap}
+  .editor-head{top:calc(var(--topbar-height, 56px) - 1px);padding:7px 16px;gap:6px;flex-wrap:nowrap}
   .editor-head-sub{font-size:11px}
   .editor-head-actions{gap:6px}
   .editor-head-actions .btn{padding:6px 10px;font-size:13px}
@@ -4188,6 +4192,8 @@ async function buildIndex() {
           path: `content/moduli/${m.slug}/`,
           titolo: m.titolo || m.slug,
           descrizione: m.descrizione || '',
+          tag: Array.isArray(m.tag) ? m.tag : [],
+          note: m.note || '',
           pagine: m.pagine || 1,
           autore: m.autore || '',
           aggiornato: m.aggiornato || null,
@@ -4378,6 +4384,8 @@ async function buildIndexFallback() {
           path: `content/moduli/${m.slug}/`,
           titolo: m.titolo || m.slug,
           descrizione: m.descrizione || '',
+          tag: Array.isArray(m.tag) ? m.tag : [],
+          note: m.note || '',
           pagine: m.pagine || 1,
           autore: m.autore || '',
           aggiornato: m.aggiornato || null,
@@ -5380,11 +5388,13 @@ function renderHome() {
 
   const pins = (state.userPrefs && state.userPrefs.pins) || [];
   const pinsByType = {
-    schede: [],      // procedura, clinica, modulo
+    schede: [],      // procedura, clinica
+    moduli: [],      // modulo (consensi, ecc.)
     cartelle: []     // categoria, sottocategoria, clinica-sub
   };
   pins.forEach(p => {
-    if (['procedura','clinica','modulo'].includes(p.type)) pinsByType.schede.push(p);
+    if (['procedura','clinica'].includes(p.type)) pinsByType.schede.push(p);
+    else if (p.type === 'modulo') pinsByType.moduli.push(p);
     else if (['categoria','sottocategoria','clinica-sub'].includes(p.type)) pinsByType.cartelle.push(p);
     // I contatti (type='contatto') non vanno più nei pins generici: usano home_numeri
   });
@@ -5426,6 +5436,13 @@ function renderHome() {
       <div class="home-section home-pins-group">
         <div class="home-section-title"><span>Schede fissate</span></div>
         <div class="procedure-grid">${pinsByType.schede.map(p => renderPinnedSchedaCard(p)).filter(Boolean).join('')}</div>
+      </div>
+    ` : ''}
+
+    ${pinsByType.moduli.length > 0 ? `
+      <div class="home-section home-pins-group">
+        <div class="home-section-title"><span>Moduli fissati</span></div>
+        <div class="procedure-grid">${pinsByType.moduli.map(p => renderPinnedSchedaCard(p)).filter(Boolean).join('')}</div>
       </div>
     ` : ''}
 
@@ -5471,7 +5488,12 @@ function renderPinnedSchedaCard(pin) {
     const m = state.index.moduli.find(x => x.slug === pin.slug);
     if (!m) return null;
     return `<div class="procedure-card" onclick="navigate('modulo', {slug:'${escapeJs(m.slug)}'})">
-      <div class="procedure-card-title">${escapeHtml(m.titolo || m.slug)}</div>
+      <div class="procedure-card-title">${escapeHtml(m.titolo || m.slug)}
+        <span class="card-actions">
+          ${renderPinButton('modulo', m.slug)}
+          <button class="btn-icon-mini edit-only card-edit-btn" onclick="event.stopPropagation();showNavContextMenu(this, 'modulo', '${escapeJs(m.slug)}')" title="Azioni">⋯</button>
+        </span>
+      </div>
       <div class="procedure-card-meta"><span>Modulo</span></div>
     </div>`;
   }
@@ -11390,6 +11412,7 @@ function renderModuliList() {
             <span class="card-actions">${renderPinButton('modulo', m.slug)}<button class="btn-icon-mini edit-only" onclick="event.stopPropagation();editModuloMeta('${escapeJs(m.slug)}')" title="Modifica nome/slug">✎</button></span>
           </div>
           ${m.descrizione ? `<div class="procedure-card-desc" style="font-size:13px;color:var(--ink-muted);margin-top:6px;line-height:1.4;">${escapeHtml(m.descrizione)}</div>` : ''}
+          ${(m.tag && m.tag.length) ? `<div style="margin-top:8px;">${m.tag.slice(0,3).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
           <div class="procedure-card-meta" style="margin-top:8px;">
             <span>${m.pagine || 1} ${(m.pagine || 1) === 1 ? 'pagina' : 'pagine'}</span>
             ${m.autore ? `<span>· ${escapeHtml(m.autore)}</span>` : ''}
@@ -11419,6 +11442,20 @@ async function editModuloMeta(slug) {
         <input type="text" id="me-descrizione" class="mod-input" value="${escapeHtml(m.descrizione || '')}" placeholder="Breve descrizione">
       </div>
       <div class="field">
+        <label>Tag <span style="font-weight:normal;color:var(--ink-muted);">(opzionale)</span></label>
+        ${renderChipsField({
+          id: 'me-tag-chips',
+          values: m.tag || [],
+          suggestions: collectAllTags(),
+          placeholder: 'cerca o crea tag…',
+          allowNew: true
+        })}
+      </div>
+      <div class="field">
+        <label>Note / istruzioni <span style="font-weight:normal;color:var(--ink-muted);">(opzionale)</span></label>
+        <textarea id="me-note" class="mod-input" rows="4" placeholder="Es. come compilare il modulo, a chi inviarlo, dove consegnarlo…">${escapeHtml(m.note || '')}</textarea>
+      </div>
+      <div class="field">
         <label>Slug <span style="font-weight:normal;color:var(--ink-muted);">(identificativo cartella — cambiarlo sposta i file)</span></label>
         <input type="text" id="me-slug" class="mod-input mono-input" value="${escapeHtml(m.slug)}" placeholder="es. consenso-rachicentesi">
         <div style="font-size:11px;color:var(--warning);margin-top:3px;">⚠ Cambiare lo slug richiede di spostare l'intera cartella del modulo. Può richiedere qualche secondo.</div>
@@ -11433,6 +11470,8 @@ async function editModuloMeta(slug) {
       { label: 'Salva', onClick: async () => {
         const titolo = ($('me-titolo').value || '').trim();
         const descrizione = ($('me-descrizione').value || '').trim();
+        const tag = typeof chipsGet === 'function' ? chipsGet('me-tag-chips') : [];
+        const note = ($('me-note').value || '').trim();
         const newSlug = slugifyLocal(($('me-slug').value || '').trim());
         if (!titolo) return toast('Titolo obbligatorio', 'warning');
         if (!newSlug) return toast('Slug obbligatorio', 'warning');
@@ -11475,6 +11514,8 @@ async function editModuloMeta(slug) {
           // 3. Aggiorno l'entry in index.yml
           entry.titolo = titolo;
           entry.descrizione = descrizione;
+          if (tag.length) entry.tag = tag; else delete entry.tag;
+          if (note) entry.note = note; else delete entry.note;
           if (slugChanged) entry.slug = newSlug;
           entry.aggiornato = new Date().toISOString();
           const freshIdx = await gh.getFile('content/moduli/index.yml');
@@ -11489,6 +11530,8 @@ async function editModuloMeta(slug) {
       } }
     ]
   });
+  // Inizializzo i chip dei tag dopo che il modal è nel DOM.
+  if (typeof chipsInit === 'function') chipsInit('me-tag-chips', collectAllTags());
 }
 
 async function renderModulo(slug) {
@@ -11502,6 +11545,7 @@ async function renderModulo(slug) {
       <div class="page-eyebrow">${buildBreadcrumb([{label:'Moduli compilabili', route:'moduli'}])}</div>
       <h1 class="page-title">${escapeHtml(m.titolo || slug)} ${renderPinButton('modulo', slug)}</h1>
       ${m.descrizione ? `<div style="margin-top:8px;font-size:14px;color:var(--ink-muted);font-style:italic;">${escapeHtml(m.descrizione)}</div>` : ''}
+      ${(m.tag && m.tag.length) ? `<div style="margin-top:12px;">${m.tag.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
       <div class="page-meta" style="margin-top:12px;">
         <div class="page-meta-item">${m.pagine || 1} ${(m.pagine || 1) === 1 ? 'pagina' : 'pagine'}</div>
         ${m.autore ? `<div class="page-meta-item">${escapeHtml(m.autore)}</div>` : ''}
@@ -11514,6 +11558,10 @@ async function renderModulo(slug) {
         </button>
       </div>
     </div>
+    ${m.note ? `<div class="mod-note-box" style="margin-top:20px;padding:16px 20px;background:var(--bg-sink);border-left:3px solid var(--accent);border-radius:0 2px 2px 0;">
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);font-weight:500;margin-bottom:8px;">Note / istruzioni</div>
+      <div style="font-size:14px;line-height:1.6;color:var(--ink-soft);white-space:pre-wrap;">${escapeHtml(m.note)}</div>
+    </div>` : ''}
     <div id="mod-detail-area" style="margin-top:24px;">
       <p style="color:var(--ink-muted);font-style:italic;">Caricamento boxes.yml e pagine modulo…</p>
     </div>
