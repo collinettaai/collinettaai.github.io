@@ -818,7 +818,7 @@ body.is-dragging-modulo-box{touch-action:none;overscroll-behavior:none;user-sele
 /* Griglia di allineamento (toggle in editMode): linee ogni 5% nello stesso sistema di
    coordinate % dei box, così facilita l'allineamento e abilita lo snap-to-grid. */
 .mod-overlay-layer.grid-on{background-image:linear-gradient(to right,rgba(24,95,165,.12) 1px,transparent 1px),linear-gradient(to bottom,rgba(24,95,165,.12) 1px,transparent 1px),linear-gradient(to right,rgba(24,95,165,.28) 1px,transparent 1px),linear-gradient(to bottom,rgba(24,95,165,.28) 1px,transparent 1px);background-size:2% 2%,2% 2%,10% 10%,10% 10%;background-position:0 0}
-.mod-box{position:absolute;font-family:var(--sans);color:#000;background:rgba(255,255,200,.4);border:1px solid rgba(180,140,0,.3);box-sizing:border-box;padding:0 2px;display:flex;align-items:center;white-space:nowrap;line-height:1;border-radius:1px;min-height:0;min-width:0}
+.mod-box{position:absolute;font-family:var(--sans);color:#000;background:rgba(255,255,200,.4);outline:1px solid rgba(180,140,0,.3);box-sizing:border-box;padding:0 2px;display:flex;align-items:center;white-space:nowrap;line-height:1;border-radius:1px;min-height:0;min-width:0}
 /* Span dedicato al testo del box: l'overflow:hidden è qui, NON sul .mod-box, così la maniglia
    esterna (top:-26px, right:-26px) non viene clippata dal box. Il testo che eccede viene
    clipped dallo span. */
@@ -830,13 +830,13 @@ body.is-dragging-modulo-box{touch-action:none;overscroll-behavior:none;user-sele
    lo spostamento anche per box centrati. La classe è immune alla ri-serializzazione. */
 .mod-box.align-center .mod-box-text{justify-content:center}
 .mod-box.align-right .mod-box-text{justify-content:flex-end}
-.mod-box.empty{background:rgba(0,0,0,.04);border:1px dashed rgba(0,0,0,.25);color:rgba(0,0,0,.3);font-style:italic}
+.mod-box.empty{background:rgba(0,0,0,.04);outline:1px dashed rgba(0,0,0,.25);color:rgba(0,0,0,.3);font-style:italic}
 /* Box con placeholder esemplificativo (in editMode quando non ha ancora valore reale).
    Stile: testo nero come il testo reale (massima leggibilità) ma background giallo chiaro
    come empty per distinguere visivamente "spazio riservato per dati". Identica struttura del
    box firma → niente scivolamento durante resize. */
-.mod-box.placeholder{background:rgba(255,255,200,.4);border:1px dashed rgba(180,140,0,.5);color:#000}
-.mod-box.firma{background:rgba(180,180,255,.15);border:1px dashed rgba(80,80,160,.4);color:rgba(60,60,120,.6);font-style:italic;justify-content:center}
+.mod-box.placeholder{background:rgba(255,255,200,.4);outline:1px dashed rgba(180,140,0,.5);color:#000}
+.mod-box.firma{background:rgba(180,180,255,.15);outline:1px dashed rgba(80,80,160,.4);color:rgba(60,60,120,.6);font-style:italic;justify-content:center}
 .mod-form-actions .btn{padding:6px 12px;font-size:13px}
 
 /* Dropdown menu per il bottone "Scarica" (PDF/PNG). Il wrap è position:relative così
@@ -9675,7 +9675,7 @@ function renderNoteGiornoSection() {
       <input type="text" id="ndg-input" placeholder="Aggiungi una nota o un promemoria…" maxlength="240"
         onkeydown="if(event.key==='Enter'){event.preventDefault();submitNotaGiorno();}"
         style="flex:1;min-width:0;padding:10px 12px;border:1px solid var(--rule);border-radius:3px;font-size:14px;font-family:var(--serif);background:var(--bg-paper);">
-      <button class="btn primary" onmousedown="event.preventDefault()" onclick="submitNotaGiorno()" title="Aggiungi" style="flex-shrink:0;">+ Aggiungi</button>
+      <button class="btn primary" onmousedown="event.preventDefault()" onclick="submitNotaGiorno(this)" title="Aggiungi" style="flex-shrink:0;">+ Aggiungi</button>
     </div>
     <div class="ndg-list" id="ndg-list">${_noteGiornoRowsHtml()}</div>
     <div id="ndg-clear-wrap">${_noteGiornoClearHtml()}</div>
@@ -9713,7 +9713,7 @@ function refreshNoteGiornoList() {
   if (clearWrap) clearWrap.innerHTML = _noteGiornoClearHtml();
 }
 
-function submitNotaGiorno() {
+function submitNotaGiorno(btnEl) {
   const input = document.getElementById('ndg-input');
   if (!input) return;
   const t = input.value.trim();
@@ -9724,6 +9724,10 @@ function submitNotaGiorno() {
   // inserimenti rapidi consecutivi.
   refreshNoteGiornoList();
   input.focus();
+  // Su mobile lo stato :hover resta "appiccicato" al pulsante dopo il tap finché non si tocca
+  // altrove (prima il renderHome ricreava il pulsante azzerandolo). Lo rigenero clonandolo così
+  // torna al colore iniziale, senza toccare l'input (focus/tastiera restano).
+  if (btnEl && btnEl.parentNode) btnEl.parentNode.replaceChild(btnEl.cloneNode(true), btnEl);
 }
 function toggleNotaGiorno(id) {
   userPrefs.toggleNotaGiorno(id);
@@ -12362,21 +12366,21 @@ function _autoFitBoxFont(boxEl) {
   const padL = parseFloat(cs.paddingLeft) || 0;
   const padR = parseFloat(cs.paddingRight) || 0;
   const availW = boxEl.clientWidth - padL - padR;
-  const availH = boxEl.clientHeight; // line-height:1 → altezza riga ≈ font-size
+  const availH = boxEl.clientHeight; // line-height:1 → altezza riga ≈ font-size; niente bordo (outline)
   if (availW <= 0 || availH <= 0) return;
   if (!_autoFitCtx) _autoFitCtx = document.createElement('canvas').getContext('2d');
   const ctx = _autoFitCtx;
   const fam = cs.fontFamily || 'sans-serif';
   const style = cs.fontStyle || 'normal';
   const weight = cs.fontWeight || '400';
+  // Calcolo analitico (no loop): la larghezza del testo è proporzionale al font-size, quindi
+  // il font che fa stare il testo in availW è baseSize*availW/larghezza. Robusto per font enormi
+  // (il vecchio loop a step fisso poteva non raggiungere il target). Stesso metodo della stampa.
+  ctx.font = `${style} ${weight} ${baseSize}px ${fam}`;
+  const measuredW = ctx.measureText(text).width;
   let size = baseSize;
-  ctx.font = `${style} ${weight} ${size}px ${fam}`;
-  let iter = 0;
-  while ((ctx.measureText(text).width > availW || size > availH) && size > MIN_SIZE && iter < 80) {
-    size -= 0.5;
-    ctx.font = `${style} ${weight} ${size}px ${fam}`;
-    iter++;
-  }
+  if (measuredW > availW) size = baseSize * (availW / measuredW);
+  if (size > availH) size = availH;
   if (size < MIN_SIZE) size = MIN_SIZE;
   boxEl.style.fontSize = size + 'px';
 }
@@ -12745,25 +12749,22 @@ async function _renderModuloPaginaSuCanvas(slug, pageIndex /* 1-based */) {
     const zoomLvl = c.zoom || 1;
     if (liveImg && liveImg.clientWidth > 0) previewWidth = liveImg.clientWidth / zoomLvl;
     const scale = canvas.width / previewWidth;
-    let fontSize = Math.round((b.font_size || 11) * scale);
 
-    // Auto-fit identico all'editor: il box è lo SPAZIO MASSIMO, il testo deve stare DENTRO sia in
-    // LARGHEZZA sia in ALTEZZA. Prima il canvas controllava solo la larghezza → in stampa il testo
-    // poteva risultare più grande/traboccante rispetto all'editor (che riduce anche per altezza).
-    // Sottraggo padding (0 2px) + bordo (1px) coerentemente col CSS del box.
-    const padW = 6 * scale;  // padding 2px*2 + bordo 1px*2
-    const padH = 2 * scale;  // solo bordo (nessun padding verticale)
+    // Auto-fit analitico identico all'editor: la larghezza del testo è proporzionale al font-size,
+    // quindi calcolo in un colpo solo il font che fa stare il testo (no loop a step fisso, che con
+    // canvas ad alta risoluzione non riusciva a rimpicciolire font molto grandi → testo tagliato).
+    // In stampa NON c'è bordo (solo testo sull'immagine): considero solo il padding orizzontale 2px.
+    const padW = 4 * scale;  // padding 2px * 2 lati
     const availW = Math.max(1, w - padW);
-    const availH = Math.max(1, h - padH);
+    const availH = Math.max(1, h);
     const MIN_SIZE_PX = Math.max(6 * scale, 4);
-    let iter = 0;
+    let fontSize = (b.font_size || 11) * scale;
     ctx.font = `${fontSize}px ${fontFamily}`;
-    while ((ctx.measureText(value).width > availW || fontSize > availH) && fontSize > MIN_SIZE_PX && iter < 60) {
-      fontSize -= Math.max(1, Math.round(scale * 0.5));
-      if (fontSize < MIN_SIZE_PX) fontSize = MIN_SIZE_PX;
-      ctx.font = `${fontSize}px ${fontFamily}`;
-      iter++;
-    }
+    const measuredW = ctx.measureText(value).width;
+    if (measuredW > availW) fontSize = fontSize * (availW / measuredW);
+    if (fontSize > availH) fontSize = availH;
+    if (fontSize < MIN_SIZE_PX) fontSize = MIN_SIZE_PX;
+    ctx.font = `${fontSize}px ${fontFamily}`;
 
     ctx.textAlign = b.align === 'center' ? 'center' : (b.align === 'right' ? 'right' : 'left');
 
