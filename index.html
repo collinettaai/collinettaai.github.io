@@ -19041,7 +19041,6 @@ function initEventListeners() {
   initEditModeButtons();
   initGlobalSearch();
   initWindowResize();
-  initKeyboardBlurOnViewport();
 }
 
 function initLoginAndNav() {
@@ -19172,11 +19171,16 @@ function initMobileDrawer() {
     // Container scrollabile orizzontalmente in cui parte il touch (o null). La decisione di
     // bloccare l'apertura sidebar è rimandata al touchmove, quando conosco la direzione.
     const scrollableX = _horizScrollableAncestor(e.target);
-    // Tastiera mobile aperta: se un campo editabile è in focus, lo scroll del contenuto
-    // (spesso con una piccola componente orizzontale) non deve aprire la sidebar né
-    // attivare il pulldown della ricerca. Il tocco dentro lo stesso campo è comunque escluso.
+    // Tastiera mobile aperta: blocco apertura sidebar/pulldown solo se la tastiera è DAVVERO
+    // visibile. Non basta che un campo sia a fuoco: dopo che la tastiera si chiude (es. gesture
+    // back) il focus può restare nel campo di ricerca, ma in quel caso la gesture sidebar deve
+    // tornare a funzionare. Stimo la visibilità reale della tastiera dal visualViewport: se è
+    // ristretto rispetto alla finestra, la tastiera occupa spazio → è aperta.
     const ae = document.activeElement;
-    const keyboardOpen = !!ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
+    const fieldFocused = !!ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
+    const vv = window.visualViewport;
+    const kbLikelyVisible = vv ? (vv.height < window.innerHeight - 120) : false;
+    const keyboardOpen = fieldFocused && kbLikelyVisible;
     // Memorizzo lo startY e tutti i mode potenzialmente validi; il mode effettivo viene deciso al primo movimento
     touchStart = {
       x: t.clientX, y: t.clientY,
@@ -19364,42 +19368,6 @@ function initWindowResize() {
       }
     }
   });
-}
-
-// Rete di sicurezza per la chiusura della tastiera mobile tramite gesture "indietro".
-// Su Android Chrome il primo back con tastiera aperta spesso la chiude senza emettere un
-// popstate utilizzabile (quindi il blur in _onPopState non scatta) e, in PWA standalone, a
-// volte non emette nemmeno un resize "pulito" del visualViewport. Per coprire tutti i casi
-// monitoro più segnali (resize E scroll del visualViewport, più resize della finestra): quando
-// la viewport si "rialza" rispetto al minimo visto con tastiera aperta, se un campo editabile è
-// ancora a fuoco lo sfoco. Così barra di ricerca globale e "Note del giorno" non restano
-// selezionate dopo aver chiuso la tastiera con il back.
-function initKeyboardBlurOnViewport() {
-  const vv = window.visualViewport;
-  if (!vv) return;
-  // Traccio l'altezza massima vista (≈ finestra senza tastiera) e quella minima (tastiera aperta).
-  let maxH = vv.height;
-  let kbOpen = false;
-  const blurActive = () => {
-    const ae = document.activeElement;
-    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) {
-      try { ae.blur(); } catch {}
-    }
-  };
-  const check = () => {
-    const h = vv.height;
-    if (h > maxH) maxH = h;
-    // Tastiera "aperta" se la viewport è sensibilmente più bassa del massimo (≈ >120px sotto).
-    const nowOpen = h < maxH - 120;
-    if (kbOpen && !nowOpen) {
-      // La viewport si è rialzata: la tastiera si è chiusa → sfoco il campo eventualmente attivo.
-      blurActive();
-    }
-    kbOpen = nowOpen;
-  };
-  vv.addEventListener('resize', check);
-  vv.addEventListener('scroll', check);
-  window.addEventListener('resize', check);
 }
 
 function initEditModeButtons() {
