@@ -4220,8 +4220,8 @@ function wizStep1(){
       <div class="lt-dropzone" onclick="document.getElementById('lt-pdf').click()"
         ondragover="event.preventDefault();this.classList.add('drag')"
         ondragleave="this.classList.remove('drag')"
-        ondrop="event.preventDefault();this.classList.remove('drag');window.Lettere._onPdf(event.dataTransfer.files[0])">
-        <input type="file" id="lt-pdf" accept="application/pdf" multiple style="display:none" onchange="window.Lettere._onPdf(this.files[0])">
+        ondrop="event.preventDefault();this.classList.remove('drag');window.Lettere._onPdf(event.dataTransfer.files)">
+        <input type="file" id="lt-pdf" accept="application/pdf" multiple style="display:none" onchange="window.Lettere._onPdf(this.files)">
         <div class="lt-dz-ic">📁</div>
         <div class="lt-dz-txt"><strong>Clicca o trascina uno o più PDF</strong></div>
       </div>
@@ -4744,8 +4744,8 @@ function renderAddCaseForm(){
     <div class="lt-dropzone" onclick="document.getElementById('nc-pdf').click()"
       ondragover="event.preventDefault();this.classList.add('drag')"
       ondragleave="this.classList.remove('drag')"
-      ondrop="event.preventDefault();this.classList.remove('drag');window.Lettere._onPdfNuovoCaso(event.dataTransfer.files[0])">
-      <input type="file" id="nc-pdf" accept="application/pdf" style="display:none" onchange="window.Lettere._onPdfNuovoCaso(this.files[0])">
+      ondrop="event.preventDefault();this.classList.remove('drag');window.Lettere._onPdfNuovoCaso(event.dataTransfer.files)">
+      <input type="file" id="nc-pdf" accept="application/pdf" multiple style="display:none" onchange="window.Lettere._onPdfNuovoCaso(this.files)">
       <div class="lt-dz-ic">📁</div>
       <div class="lt-dz-txt"><strong>Clicca o trascina il PDF della cartella</strong></div>
     </div>
@@ -5021,12 +5021,19 @@ window.Lettere = {
     w.outputLetter=txt; const ta=document.getElementById('lt-out'); if(ta) ta.value=txt;
     toast('Formattazione ripulita.','success'); },
 
-  async _onPdf(file){ if(!file)return; const w=ensureWiz();
+  async _onPdf(files){
+    // Accetta un singolo File (retrocompat) o un FileList con più PDF.
+    const list = files ? (files.length!==undefined ? Array.from(files) : [files]) : [];
+    if(!list.length) return; const w=ensureWiz();
     const box=document.getElementById('lt-pdf-status'); const txt=document.getElementById('lt-pdf-status-txt');
-    if(box) box.style.display='block'; if(txt) txt.textContent='Lettura PDF…';
-    try{ const t=await extractPdfText(file); w.rawText=(w.rawText?w.rawText+'\n\n':'')+t;
+    if(box) box.style.display='block'; if(txt) txt.textContent = list.length>1 ? `Lettura ${list.length} PDF…` : 'Lettura PDF…';
+    try{
+      for(let i=0;i<list.length;i++){
+        if(txt && list.length>1) txt.textContent=`Lettura PDF ${i+1}/${list.length}…`;
+        const t=await extractPdfText(list[i]); w.rawText=(w.rawText?w.rawText+'\n\n':'')+t;
+      }
       const ta=document.getElementById('lt-raw'); if(ta)ta.value=w.rawText;
-      if(txt) txt.textContent='✓ PDF aggiunto al testo.'; }
+      if(txt) txt.textContent = list.length>1 ? `✓ ${list.length} PDF aggiunti al testo.` : '✓ PDF aggiunto al testo.'; }
     catch(e){ if(txt) txt.textContent='Errore PDF: '+e.message; } },
   async _onXls(file){ if(!file)return; const w=ensureWiz();
     const box=document.getElementById('lt-xls-status'); const txt=document.getElementById('lt-xls-status-txt');
@@ -5090,11 +5097,19 @@ window.Lettere = {
   // Carica un PDF nel form di inserimento diretto: estrae il testo, anonimizza,
   // riconosce automaticamente la lettera di dimissione (se più d'una, l'ultima per
   // data di firma) e separa cartella e lettera nei rispettivi campi.
-  async _onPdfNuovoCaso(file){ if(!file)return;
+  async _onPdfNuovoCaso(files){
+    // Accetta un singolo File (retrocompat) o un FileList con più PDF.
+    const list = files ? (files.length!==undefined ? Array.from(files) : [files]) : [];
+    if(!list.length) return;
     const box=document.getElementById('nc-pdf-status'); const txt=document.getElementById('nc-pdf-status-txt');
-    if(box) box.style.display='block'; if(txt) txt.textContent='Lettura PDF…';
+    if(box) box.style.display='block'; if(txt) txt.textContent = list.length>1 ? `Lettura ${list.length} PDF…` : 'Lettura PDF…';
     try{
-      const raw=await extractPdfText(file);
+      // Concateno il testo grezzo di tutti i PDF, poi anonimizzo/separo una volta sola.
+      let raw='';
+      for(let i=0;i<list.length;i++){
+        if(txt && list.length>1) txt.textContent=`Lettura PDF ${i+1}/${list.length}…`;
+        const t=await extractPdfText(list[i]); raw=raw?raw+'\n\n'+t:t;
+      }
       if(txt) txt.textContent='Anonimizzazione…';
       const r=anonymizeText(raw);
       const anon=r.text;
@@ -5106,10 +5121,11 @@ window.Lettere = {
       const badge=document.getElementById('nc-letter-badge');
       if(letter){ if(taLet) taLet.value=letter; if(badge) badge.style.display='inline-block'; }
       else { if(badge) badge.style.display='none'; }
-      // Suggerisce un nome dal file se vuoto
+      // Suggerisce un nome dal primo file se vuoto
       const taName=document.getElementById('nc-name');
-      if(taName && !taName.value.trim()){ taName.value=file.name.replace(/\.pdf$/i,'').replace(/[_\-]+/g,' ').trim(); }
-      if(txt) txt.textContent= letter ? `✓ PDF letto · lettera rilevata (${letter.length.toLocaleString('it-IT')} caratteri)` : '✓ PDF letto · lettera NON rilevata, incollala manualmente';
+      if(taName && !taName.value.trim()){ taName.value=list[0].name.replace(/\.pdf$/i,'').replace(/[_\-]+/g,' ').trim(); }
+      const pre = list.length>1 ? `✓ ${list.length} PDF letti · ` : '✓ PDF letto · ';
+      if(txt) txt.textContent= letter ? `${pre}lettera rilevata (${letter.length.toLocaleString('it-IT')} caratteri)` : `${pre}lettera NON rilevata, incollala manualmente`;
     }catch(e){ if(txt) txt.textContent='Errore PDF: '+e.message; }
   },
   // Carica un file XLS/CSV nel form Aggiungi Caso e popola il textarea esami di laboratorio
