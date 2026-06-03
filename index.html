@@ -2040,9 +2040,9 @@ function timeAgo(iso) {
   if (!iso) return '—';
   const d = new Date(iso); const now = new Date(); const diff = (now - d) / 1000;
   if (diff < 60) return 'pochi secondi fa';
-  if (diff < 3600) return `${Math.floor(diff/60)} minuti fa`;
-  if (diff < 86400) return `${Math.floor(diff/3600)} ore fa`;
-  if (diff < 604800) return `${Math.floor(diff/86400)} giorni fa`;
+  if (diff < 3600) { const n = Math.floor(diff/60); return `${n} ${n === 1 ? 'minuto' : 'minuti'} fa`; }
+  if (diff < 86400) { const n = Math.floor(diff/3600); return `${n} ${n === 1 ? 'ora' : 'ore'} fa`; }
+  if (diff < 604800) { const n = Math.floor(diff/86400); return `${n} ${n === 1 ? 'giorno' : 'giorni'} fa`; }
   return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
@@ -5458,10 +5458,14 @@ function findContattoBySlug(slug) {
 // il messaggio di commit registra, l'id no).
 function findContattoByEtichetta(etichetta) {
   if (!etichetta) return null;
-  const norm = etichetta.toLowerCase().trim();
-  for (const g of getVisibleNumeriGroups()) {
+  const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const target = norm(etichetta);
+  if (!target) return null;
+  const groups = getVisibleNumeriGroups();
+  // 1) match esatto (normalizzato spazi/maiuscole)
+  for (const g of groups) {
     for (const c of (g.contatti || [])) {
-      if ((c.etichetta || '').toLowerCase().trim() === norm) return { ...c, _gruppoId: g.id };
+      if (norm(c.etichetta) === target) return { ...c, _gruppoId: g.id };
     }
   }
   return null;
@@ -15752,8 +15756,19 @@ function renderAttivita() {
   const eventsFromCommits = s.commits || [];
 
   // Unione + ordinamento cronologico DESC + filtri
-  const allEvents = [...eventsFromFiles, ...eventsFromCommits];
+  let allEvents = [...eventsFromFiles, ...eventsFromCommits];
   allEvents.sort((a, b) => b.when - a.when);
+
+  // Dedup commit "preferenze": ogni salvataggio genera un commit, quindi si accumulano
+  // molte righe identiche. Tengo solo la più recente per utente/giorno.
+  const _seenPref = new Set();
+  allEvents = allEvents.filter(e => {
+    if (e.tipo !== 'preferenze') return true;
+    const dayKey = `${e.user}|${e.when.toISOString().slice(0, 10)}`;
+    if (_seenPref.has(dayKey)) return false;
+    _seenPref.add(dayKey);
+    return true;
+  });
 
   const filtered = s.filter === 'tutti'
     ? allEvents
@@ -15852,7 +15867,10 @@ function renderAttivita() {
 
 /* Render di un singolo evento (riga nella lista) */
 function renderAttivitaEvent(e) {
-  const initials = (e.user || '?').slice(0, 2).toUpperCase();
+  const _nameParts = (e.user || '?').trim().split(/\s+/).filter(Boolean);
+  const initials = (_nameParts.length >= 2
+    ? (_nameParts[0][0] + _nameParts[_nameParts.length - 1][0])
+    : (_nameParts[0] || '?').slice(0, 2)).toUpperCase();
   const userIsAdmin = e.user && state.tokensFile && state.tokensFile.utenti
     && state.tokensFile.utenti[e.user] && state.tokensFile.utenti[e.user].is_admin;
   const avatarClass = userIsAdmin ? 'at-avatar at-avatar-admin' : 'at-avatar';
@@ -15919,14 +15937,22 @@ async function _fetchAttivitaCommits() {
       label = firstLine.replace(/\(by [^)]+\)\s*—?\s*/, '').trim();
     } else if (/^Aggiorna numeri/i.test(firstLine)) {
       tipo = 'numeri';
-      // Se c'è " — <desc>", prendo la desc come label
+      // La desc segue " — " (em-dash). Se assente, fallback generico.
       const descMatch = firstLine.match(/\s—\s(.+)$/);
       label = descMatch ? descMatch[1] : 'rubrica numeri';
-      // Provo a ricavare l'etichetta del contatto dalla descrizione ("...contatto: <etichetta>")
-      // per poter fare deep-link al contatto specifico invece che alla rubrica generica.
-      const cMatch = label.match(/contatto:\s*(.+)$/i);
+      // Deep-link al contatto. Per le modifiche a singolo contatto uso l'etichetta diretta;
+      // per le modifiche multiple ("tag di N contatti: X, Y") prendo il PRIMO della lista,
+      // così almeno si atterra nella UOC giusta. I gruppi/sezioni restano non deep-linkabili.
+      let etich = null;
+      let cMatch = label.match(/(?:aggiungi|modifica|elimina)\s+contatto:\s*(.+)$/i)
+                || label.match(/tag di 1 contatto:\s*(.+)$/i);
       if (cMatch) {
-        const etich = cMatch[1].trim();
+        etich = cMatch[1].trim();
+      } else {
+        const multiMatch = label.match(/tag di \d+ contatti:\s*(.+)$/i);
+        if (multiMatch) etich = multiMatch[1].split(',')[0].trim();
+      }
+      if (etich) {
         const found = findContattoByEtichetta(etich);
         if (found) slug = found.id;
       }
@@ -15956,6 +15982,8 @@ async function _fetchAttivitaCommits() {
       notaOverride = '';
     } else if (/^(acquire|release|chore\(locks\))/i.test(firstLine)) {
       continue; // filtro locks: troppo rumore
+    } else if (/^chore\(moduli\)/i.test(firstLine) || /^(Modifica|Nuovo|Elimina) modulo/i.test(firstLine)) {
+      continue; // filtro commit tecnici dei moduli (timestamp, box, ecc.): rumore automatico
     }
     // De-dup: per procedure/cliniche/moduli la cronologia_recente nei file
     // copre già le modifiche. I commit su quei file sarebbero un duplicato.
