@@ -1242,9 +1242,9 @@ body.search-overlay-open #search-overlay{touch-action:pan-y;overscroll-behavior-
 .sr-contact-nums{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;align-items:center;flex-shrink:0;max-width:60%}
 @media (max-width:600px){.sr-contact-nums{max-width:65%;gap:3px}}
 @media (max-width:420px){.sr-contact-nums{max-width:70%;gap:3px}}
-.sr-num-chip{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:12px;padding:3px 8px;border-radius:3px;background:var(--bg-sink);border:1px solid var(--rule-soft);color:var(--ink-soft);white-space:nowrap;line-height:1.3;min-width:0}
+.sr-num-chip{display:inline-flex;align-items:baseline;gap:3px;font-family:var(--mono);font-size:12px;padding:3px 8px;border-radius:3px;background:var(--bg-sink);border:1px solid var(--rule-soft);color:var(--ink-soft);white-space:nowrap;line-height:1.3;min-width:0}
 /* Prefisso "pers."/"br." dentro il chip — contrasto morbido per non rubare attenzione al numero */
-.sr-num-prefix{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;opacity:.7;font-family:var(--mono)}
+.sr-num-prefix{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;opacity:.7;font-family:var(--mono);line-height:1.3}
 .sr-num-chip-guardia{background:#fef0ef;color:var(--danger);border-color:#f5c2bf;font-weight:500}
 .sr-num-chip-reparto{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:500}
 .sr-num-chip-utile{background:#e8f5e9;color:#2e7d32;border-color:#b2d8b4;font-weight:500}
@@ -1341,6 +1341,8 @@ body.search-overlay-open #search-overlay{touch-action:pan-y;overscroll-behavior-
 .fav-bucket{margin-bottom:6px}
 .fav-bucket-header{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;background:var(--bg-sink);border:none;border-radius:4px;margin:0 0 4px;cursor:pointer;text-align:left;font-family:inherit;color:inherit;transition:background .12s;-webkit-tap-highlight-color:transparent}
 .fav-bucket-header:hover{background:var(--bg-raised)}
+.fav-bucket-header-static{cursor:default}
+.fav-bucket-header-static:hover{background:var(--bg-sink)}
 .fav-bucket-caret{font-family:var(--mono);font-size:10px;color:var(--ink-muted);width:10px;display:inline-block;flex-shrink:0}
 .fav-bucket-header .sede-bucket-tipo{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);font-weight:700}
 .fav-bucket-edit .btn-icon-mini{cursor:pointer}
@@ -1376,7 +1378,7 @@ body.search-overlay-open #search-overlay{touch-action:pan-y;overscroll-behavior-
 .sede-bucket-toggle.sede-bucket-navigate::after{content:'→';margin-left:auto;color:var(--ink-muted);font-size:13px;opacity:.5;transition:transform .15s,opacity .15s}
 .sede-bucket-toggle.sede-bucket-navigate:hover::after{opacity:1;transform:translateX(2px)}
 .sede-bucket-sep{color:var(--ink-faint);margin:0 4px;font-weight:400}
-.sede-bucket-sez{text-transform:none}
+.sede-bucket-sez{text-transform:none!important}
 /* Search section pills: quando una UOC matcha per nome durante ricerca, mostra le sezioni
    come pillole compatte cliccabili invece dei contatti aperti */
 .search-section-pills{display:flex;flex-direction:column;gap:6px;margin:6px 0 4px}
@@ -5451,6 +5453,20 @@ function findContattoBySlug(slug) {
   return null;
 }
 
+// Cerca un contatto per etichetta esatta (case-insensitive) tra tutti i gruppi visibili.
+// Usato per il deep-link dei commit "numeri" → contatto specifico (l'etichetta è ciò che
+// il messaggio di commit registra, l'id no).
+function findContattoByEtichetta(etichetta) {
+  if (!etichetta) return null;
+  const norm = etichetta.toLowerCase().trim();
+  for (const g of getVisibleNumeriGroups()) {
+    for (const c of (g.contatti || [])) {
+      if ((c.etichetta || '').toLowerCase().trim() === norm) return { ...c, _gruppoId: g.id };
+    }
+  }
+  return null;
+}
+
 /* ============================ VIEW — HOME ============================ */
 function renderHome() {
   const procs = state.index.procedure;
@@ -9135,8 +9151,10 @@ function renderNumeri(filter, targetContainer) {
     );
     const hasCustomSezioni = userPrefs.getCustomSezioni().length > 0;
     if (hasAnyPin || hasCustomSezioni) {
-      // Redirect al filtro preferiti
-      navigate('numeri', { filter: 'pinned' });
+      // Redirect al filtro preferiti. Uso replace (non push) così premendo "indietro" non
+      // si resta intrappolati su questa entry redirect → la history torna alla pagina
+      // precedente (es. Attività) invece di ri-renderizzare numeri all'infinito.
+      navigate('numeri', { filter: 'pinned' }, { replace: true });
       return;
     }
   }
@@ -9844,7 +9862,7 @@ function renderHomeNumeriSection() {
     // Vista normale: box compatto con "UOC · Sezione" inline nel titolo (risparmia spazio),
     // ma con il rendering ricco delle righe (etichetta, luogo, orari, note) come in rubrica.
     // La stella su ogni riga apre il popup fissati/preferiti.
-    listHtml = renderContattiGroupedBox(items, { rich: true, expanded: true });
+    listHtml = renderContattiGroupedBox(items, { rich: true, clickableHeader: true });
   }
 
   const empty = !items.length
@@ -10152,6 +10170,22 @@ function renderContattiGroupedBox(items, opts = {}) {
           } : null
         })).join('');
     const isExpanded = !!opts.expanded;
+    if (opts.clickableHeader) {
+      // Vista home: niente collasso. UOC e sezione sono link separati (come nella ricerca
+      // globale collassata): UOC → overview UOC; sezione → UOC con quella sezione espansa
+      // (navigando sul primo contatto del gruppo, che apre la sua sezione e ci scrolla).
+      const firstId = (grp.contatti[0] && grp.contatti[0].c && grp.contatti[0].c.id) || '';
+      const titleUocLink = `<span class="ctx-uoc" onclick="event.stopPropagation();navigate('numeri',{filter:'${escapeJs(grp.gId)}'})" title="Apri ${escapeHtml(grp.gNome)}">${escapeHtml(grp.gNome)}</span>`;
+      const titleSezLink = grp.sezione
+        ? `<span class="sede-bucket-sep"> · </span><span class="ctx-sezione sede-bucket-sez" onclick="event.stopPropagation();navigate('numeri',{filter:'${escapeJs(firstId)}'})" title="Apri ${escapeHtml(grp.gNome)} con ${escapeHtml(grp.sezione)} espansa">${escapeHtml(grp.sezione)}</span>`
+        : '';
+      return `<div class="fav-bucket" data-uoc-id="${escapeHtml(grp.gId)}">
+        <div class="fav-bucket-header fav-bucket-header-static">
+          <span class="sede-bucket-tipo">${titleUocLink}${titleSezLink}</span>${uocReorder}
+        </div>
+        <div class="fav-bucket-contatti">${rows}</div>
+      </div>`;
+    }
     return `<div class="fav-bucket ${isExpanded ? '' : 'fav-bucket-collapsed'}" data-uoc-id="${escapeHtml(grp.gId)}">
       <button class="fav-bucket-header" onclick="toggleFavBucket(this)" aria-expanded="${isExpanded ? 'true' : 'false'}">
         <span class="fav-bucket-caret">${isExpanded ? '\u25BE' : '\u25B8'}</span>
@@ -15827,6 +15861,7 @@ function renderAttivitaEvent(e) {
   if (e.slug && e.tipo === 'procedura') clickHandler = `onclick="navigate('procedura',{slug:'${escapeJs(e.slug)}'})"`;
   else if (e.slug && e.tipo === 'clinica') clickHandler = `onclick="navigate('clinica-scheda',{slug:'${escapeJs(e.slug)}'})"`;
   else if (e.slug && e.tipo === 'modulo') clickHandler = `onclick="navigate('modulo',{slug:'${escapeJs(e.slug)}'})"`;
+  else if (e.tipo === 'numeri' && e.slug) clickHandler = `onclick="navigate('numeri',{filter:'${escapeJs(e.slug)}'})"`;
   else if (e.tipo === 'numeri') clickHandler = `onclick="navigate('numeri')"`;
 
   return `<div class="at-event" ${clickHandler} ${clickHandler ? 'style="cursor:pointer;"' : ''}>
@@ -15834,7 +15869,7 @@ function renderAttivitaEvent(e) {
     <div class="at-event-main">
       <div class="at-event-line">
         <strong>${escapeHtml(e.user || '—')}</strong>
-        <span class="at-event-verb">${e.source === 'commit' ? 'ha commesso' : 'ha modificato'}</span>
+        <span class="at-event-verb">${e.source === 'commit' ? 'ha aggiornato' : 'ha modificato'}</span>
         <span class="at-event-target">${escapeHtml(e.label || e.slug || '(anonimo)')}</span>
       </div>
       ${e.nota ? `<div class="at-event-nota">${escapeHtml(e.nota)} · ${timeAgo(e.when.toISOString())}</div>` : `<div class="at-event-nota">${timeAgo(e.when.toISOString())}</div>`}
@@ -15878,6 +15913,7 @@ async function _fetchAttivitaCommits() {
     let tipo = 'altro';
     let label = firstLine;
     let slug = null;
+    let notaOverride = null;
     if (/encrypted-tokens/i.test(firstLine)) {
       tipo = 'utenti';
       label = firstLine.replace(/\(by [^)]+\)\s*—?\s*/, '').trim();
@@ -15886,6 +15922,14 @@ async function _fetchAttivitaCommits() {
       // Se c'è " — <desc>", prendo la desc come label
       const descMatch = firstLine.match(/\s—\s(.+)$/);
       label = descMatch ? descMatch[1] : 'rubrica numeri';
+      // Provo a ricavare l'etichetta del contatto dalla descrizione ("...contatto: <etichetta>")
+      // per poter fare deep-link al contatto specifico invece che alla rubrica generica.
+      const cMatch = label.match(/contatto:\s*(.+)$/i);
+      if (cMatch) {
+        const etich = cMatch[1].trim();
+        const found = findContattoByEtichetta(etich);
+        if (found) slug = found.id;
+      }
     } else if (/^Aggiorna clinica\//i.test(firstLine)) {
       tipo = 'clinica';
       slug = firstLine.match(/^Aggiorna clinica\/([^\s—]+)/i)?.[1];
@@ -15901,6 +15945,15 @@ async function _fetchAttivitaCommits() {
     } else if (/^Carica immagine/i.test(firstLine)) {
       tipo = 'immagine';
       label = firstLine;
+    } else if (/^chore:\s*preferenze home di\s+(.+)$/i.test(firstLine)) {
+      // Commit delle preferenze home personali (formato "chore: preferenze home di <user>").
+      // Non ha il marcatore "(by user)", quindi l'user va estratto da qui. Mostro una label
+      // pulita senza il prefisso tecnico "chore:".
+      tipo = 'preferenze';
+      const mPref = firstLine.match(/^chore:\s*preferenze home di\s+(.+?)(?:\s*\(retry\))?$/i);
+      if (mPref) user = mPref[1].trim();
+      label = 'preferenze home';
+      notaOverride = '';
     } else if (/^(acquire|release|chore\(locks\))/i.test(firstLine)) {
       continue; // filtro locks: troppo rumore
     }
@@ -15916,7 +15969,7 @@ async function _fetchAttivitaCommits() {
       tipo,
       slug,
       label,
-      nota: user !== '—' ? firstLine.replace(/\(by [^)]+\)\s*—?\s*/, '').replace(/\(by [^)]+\)/, '').trim() : firstLine,
+      nota: notaOverride !== null ? notaOverride : (user !== '—' ? firstLine.replace(/\(by [^)]+\)\s*—?\s*/, '').replace(/\(by [^)]+\)/, '').trim() : firstLine),
       source: 'commit'
     });
   }
