@@ -5770,18 +5770,19 @@ function renderReparto() {
     </div>
 
     <div class="card" style="margin-bottom:16px;">
-      <div class="ctitle">1 · Cartella clinica del paziente</div>
+      <div class="ctitle">1 · Carica PDF cartella clinica completa</div>
       <div class="rep-dz" id="reparto-drop" onclick="document.getElementById('reparto-pdf').click()"
         style="margin-bottom:12px;"
         ondragover="event.preventDefault();this.classList.add('drag')"
         ondragleave="this.classList.remove('drag')"
-        ondrop="event.preventDefault();this.classList.remove('drag');window.onRepartoPdf(event.dataTransfer.files[0])">
-        <input type="file" id="reparto-pdf" accept="application/pdf" style="display:none" onchange="window.onRepartoPdf(this.files[0])">
+        ondrop="event.preventDefault();this.classList.remove('drag');window.onRepartoPdf(event.dataTransfer.files)">
+        <input type="file" id="reparto-pdf" accept="application/pdf" multiple style="display:none" onchange="window.onRepartoPdf(this.files)">
         <div class="rep-dz-ic">📁</div>
-        <div class="rep-dz-txt"><strong>Clicca o trascina un PDF</strong>, oppure incolla il testo qui sotto</div>
+        <div class="rep-dz-txt"><strong>Clicca o trascina uno o più PDF</strong></div>
         <div id="reparto-pdf-status" class="rep-dz-status" style="${r.anonimizzato ? '' : 'display:none;'}"></div>
       </div>
-      <textarea id="reparto-raw" rows="8" class="mono-input" style="width:100%;font-size:12px;" placeholder="Incolla qui il testo della cartella clinica..." oninput="window.setRepartoRaw(this.value)" onchange="window.anonimizzaReparto()">${escapeHtml(r.rawText)}</textarea>
+      <label style="font-size:12px;color:var(--ink-muted);">Testo cartella clinica completa</label>
+      <textarea id="reparto-raw" rows="8" class="mono-input" style="width:100%;font-size:12px;" placeholder="Incolla qui il testo copiato dal PDF della cartella clinica" oninput="window.setRepartoRaw(this.value)" onchange="window.anonimizzaReparto()">${escapeHtml(r.rawText)}</textarea>
       ${r.anonimizzato ? `
         <div style="margin-top:12px;">
           <label style="font-size:12px;color:var(--ink-muted);">Cartella anonimizzata</label>
@@ -5790,7 +5791,7 @@ function renderReparto() {
     </div>
 
     <div class="card" style="margin-bottom:16px;">
-      <div class="ctitle">2 · Tabella esami di laboratorio</div>
+      <div class="ctitle">2 · Carica tabella esami di laboratorio — opzionale</div>
       <div class="rep-dz" id="reparto-xls-drop" onclick="document.getElementById('reparto-xls').click()"
         style="margin-top:8px;"
         ondragover="event.preventDefault();this.classList.add('drag')"
@@ -5798,7 +5799,7 @@ function renderReparto() {
         ondrop="event.preventDefault();this.classList.remove('drag');window.onRepartoXls(event.dataTransfer.files[0])">
         <input type="file" id="reparto-xls" accept=".xls,.xlsx,.csv" style="display:none" onchange="window.onRepartoXls(this.files[0])">
         <div class="rep-dz-ic">🧪</div>
-        <div class="rep-dz-txt"><strong>Clicca o trascina la tabella esami</strong> (XLS/CSV)</div>
+        <div class="rep-dz-txt"><strong>Clicca o trascina XLS</strong></div>
         <div id="reparto-xls-status" class="rep-dz-status" style="display:none;"></div>
       </div>
       ${r.xlsText ? `
@@ -6032,17 +6033,24 @@ window.resetRepartoCartella = function () {
   renderReparto();
   toast('Cartella ed esami azzerati', 'info');
 };
-window.onRepartoPdf = async function (file) {
-  if (!file) return;
+window.onRepartoPdf = async function (files) {
+  // Accetta un singolo File (retrocompat) o un FileList con più PDF.
+  const list = files ? (files.length !== undefined ? Array.from(files) : [files]) : [];
+  if (!list.length) return;
   const status = document.getElementById('reparto-pdf-status');
-  if (status) { status.style.display = ''; status.textContent = 'Lettura PDF…'; }
+  if (status) { status.style.display = ''; status.textContent = list.length > 1 ? `Lettura ${list.length} PDF…` : 'Lettura PDF…'; }
   try {
     const L = await ensureLetterAI();
     if (!L || typeof L.extractPdfText !== 'function') throw new Error('Modulo di estrazione non disponibile');
-    const text = await L.extractPdfText(file);
-    state.reparto.rawText = text;
+    let raw = '';
+    for (let i = 0; i < list.length; i++) {
+      if (status && list.length > 1) status.textContent = `Lettura PDF ${i + 1}/${list.length}…`;
+      const t = await L.extractPdfText(list[i]);
+      raw = raw ? raw + '\n\n' + t : t;
+    }
+    state.reparto.rawText = raw;
     const ta = document.getElementById('reparto-raw');
-    if (ta) ta.value = text;
+    if (ta) ta.value = raw;
     if (status) status.textContent = '✓ PDF letto, anonimizzazione in corso…';
     await window.anonimizzaReparto();
     // Dopo l'anonimizzazione la UI è stata ri-renderizzata e la cartella
