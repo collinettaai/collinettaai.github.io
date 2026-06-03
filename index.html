@@ -242,7 +242,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);
 
 /* APP SHELL */
 #app-view{display:grid;grid-template-rows:auto auto 1fr;min-height:100vh}
-header.topbar{position:fixed;top:0;left:0;right:0;z-index:50;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;padding:14px 24px;background:rgba(251,248,242,.92);backdrop-filter:saturate(1.4) blur(12px);-webkit-backdrop-filter:saturate(1.4) blur(12px);border-bottom:1px solid var(--rule);box-sizing:border-box}
+header.topbar{position:fixed;top:0;left:0;right:0;z-index:50;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;padding:14px 24px;background:var(--bg);border-bottom:1px solid var(--rule);box-sizing:border-box}
 /* La topbar è fixed (fuori dal flusso): compenso lo spazio con padding-top sull'app-body,
    pari all'altezza della topbar (misurata in --topbar-height via JS). Questo evita che il
    browser scrolli il documento per "rivelare il caret" dell'input quando era sticky. */
@@ -356,7 +356,7 @@ html[data-theme="dark"]{
   --warning:#f5a35f;
 }
 [data-theme="dark"] body{background:#121212;color:var(--ink)}
-[data-theme="dark"] header.topbar{background:rgba(26,26,26,.92)}
+[data-theme="dark"] header.topbar{background:var(--bg)}
 
 /* Palette D in dark mode: bg neutro + bordo colorato + numero pillola + pallino davanti al nome */
 [data-theme="dark"] .numero-row-guardia,
@@ -677,8 +677,8 @@ main.content{padding:40px 48px 80px;width:100%;min-width:0}
 .ndg-row:hover{background:var(--bg-sink)}
 .ndg-check{background:transparent;border:none;cursor:pointer;font-size:18px;line-height:1;padding:0;color:var(--ink-muted);flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .ndg-check:hover{color:var(--accent)}
-.ndg-text{flex:1;min-width:0;font-size:14px;color:var(--ink);line-height:1.4;word-break:break-word}
-.ndg-edit-input{flex:1;min-width:0;font:inherit;font-size:14px;color:var(--ink);line-height:1.4;padding:2px 6px;border:1px solid var(--accent);border-radius:3px;background:var(--bg-paper);resize:none;overflow:hidden;word-break:break-word;white-space:pre-wrap}
+.ndg-text{flex:1;min-width:0;font-family:var(--serif);font-size:14px;color:var(--ink);line-height:1.4;word-break:break-word}
+.ndg-edit-input{flex:1;min-width:0;font-family:var(--serif);font-size:14px;color:var(--ink);line-height:1.4;padding:2px 6px;border:1px solid var(--accent);border-radius:3px;background:var(--bg-paper);resize:none;overflow:hidden;word-break:break-word;white-space:pre-wrap}
 .ndg-edit-input:focus{outline:none}
 .ndg-row-editing .ndg-del,.ndg-row-editing .ndg-drag{display:none}
 .ndg-done .ndg-text{text-decoration:line-through;color:var(--ink-faint)}
@@ -2678,7 +2678,7 @@ const userPrefs = {
     const idx = state.userPrefs.home_numeri.indexOf(cid);
     let added;
     if (idx >= 0) { state.userPrefs.home_numeri.splice(idx, 1); added = false; }
-    else { state.userPrefs.home_numeri.push(cid); added = true; }
+    else { state.userPrefs.home_numeri.unshift(cid); added = true; }
     userPrefs.scheduleSave();
     return added;
   },
@@ -16176,6 +16176,7 @@ function toggleEditMode(force) {
 
 function getRootNavNodes() {
   return [
+    { id: 'home', label: 'Home', kind: 'top', slug: 'home', navTarget: { route: 'home', params: {} } },
     { id: 'procedure', label: 'Procedure', count: state.index.procedure.length, kind: 'top', slug: 'procedure', navTarget: { route: 'procedure', params: {} }, children: () => buildProcedureChildren() },
     { id: 'clinica', label: 'Clinica', count: (state.index.clinica || []).length, kind: 'top', slug: 'clinica', navTarget: { route: 'clinica', params: {} }, children: () => buildClinicaChildren() },
     { id: 'numeri', label: 'Rubrica', count: countNumeri(), kind: 'top', slug: 'numeri', navTarget: { route: 'numeri', params: {} } },
