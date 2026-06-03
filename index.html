@@ -955,6 +955,10 @@ body.is-dragging-modulo-box{touch-action:none;overscroll-behavior:none;user-sele
 .rep-dz-txt{font-family:var(--mono);font-size:11px;color:var(--ink-muted)}
 .rep-dz-txt strong{color:var(--ink)}
 .rep-dz-status{margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.rep-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.rep-tab{padding:6px 14px;border:1px solid var(--rule);border-radius:20px;background:transparent;font-size:12px;color:var(--ink-soft);cursor:pointer;transition:all .12s}
+.rep-tab:hover{border-color:var(--accent);color:var(--ink)}
+.rep-tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .numero-row-utile{border-left-color:#2e7d32}
 .numero-row-utile .numero-num-primary{background:#e8f5e9;border-color:#2e7d32;color:#2e7d32}
 .numero-row-utile .numero-num-primary:hover{background:#2e7d32;color:#fff}
@@ -5683,7 +5687,8 @@ state.reparto = state.reparto || {
   systemPromptLoaded: false, // true dopo il primo tentativo di caricamento dal repo
   topicsCustom: {},     // override delle istruzioni dei topic: { id: 'istruzione' } (vuoto = usa default)
   topicsSha: null,      // sha del file topics nel repo
-  promptCustom: ''      // se l'utente edita il prompt finale, lo conserviamo
+  promptCustom: '',     // se l'utente edita il prompt finale, lo conserviamo
+  promptTab: 'full'     // vista attiva nei tab del prompt: full | system | user
 };
 
 // Percorso nel repo dati dove persistono le istruzioni personalizzate dei topic del Reparto.
@@ -5727,8 +5732,9 @@ function repartoTopicIstr(t) {
   return (custom !== undefined && custom !== null && String(custom).trim()) ? String(custom).trim() : t.istr;
 }
 
-// Costruisce il prompt finale in base a system prompt, preferenze, cartella ed esami.
-function buildRepartoPrompt() {
+// Costruisce le parti del prompt (istruzioni + caso clinico) per le viste a tab.
+// system = istruzioni di sistema + elenco delle richieste; user = cartella + esami.
+function repartoPromptParts() {
   const r = state.reparto;
   const sys = (r.systemPrompt !== null ? r.systemPrompt : REPARTO_SYSTEM_DEFAULT).trim();
   const richieste = REPARTO_TOPICS.filter(t => r.chiedi[t.id]);
@@ -5739,14 +5745,24 @@ function buildRepartoPrompt() {
   const esamiBlock = (r.xlsText || '').trim()
     ? `\n\n### Tabella esami di laboratorio\n\n${r.xlsText.trim()}`
     : '';
-  return `${sys}
+  const system = `${sys}\n\nSulla base dei soli dati forniti, indica:\n${elenco}`;
+  const user = `### Cartella clinica anonimizzata\n\n${cartella}${esamiBlock}`;
+  return { system, user };
+}
 
-Sulla base dei soli dati forniti, indica:
-${elenco}
+// Costruisce il prompt finale in base a system prompt, preferenze, cartella ed esami.
+function buildRepartoPrompt() {
+  const p = repartoPromptParts();
+  return `${p.system}\n\n${p.user}`;
+}
 
-### Cartella clinica anonimizzata
-
-${cartella}${esamiBlock}`;
+// Testo mostrato nei tab Completo / Istruzioni / Caso clinico (replica LetteraAI).
+function repartoPromptViewText(tab) {
+  const r = state.reparto;
+  if (tab === 'system') return repartoPromptParts().system;
+  if (tab === 'user') return repartoPromptParts().user;
+  // Vista completa: se l'utente ha editato il prompt, mostra il suo testo
+  return r.promptCustom || buildRepartoPrompt();
 }
 
 function renderReparto() {
@@ -5764,13 +5780,15 @@ function renderReparto() {
       <span>${escapeHtml(t.label)}</span>
     </label>`).join('');
   const sysVal = r.systemPrompt !== null ? r.systemPrompt : REPARTO_SYSTEM_DEFAULT;
+  const ptab = r.promptTab || 'full';
+  const ptabBtn = (k, l) => `<button class="rep-tab${ptab === k ? ' on' : ''}" onclick="window.setRepartoPromptTab('${k}')">${l}</button>`;
   $('main-content').innerHTML = `
     <div class="page-head">
       <h1 class="page-title">Reparto</h1>
     </div>
 
     <div class="card" style="margin-bottom:16px;">
-      <div class="ctitle">1 · Carica PDF cartella clinica completa</div>
+      <div class="rep-dz-title">Carica PDF cartella clinica completa</div>
       <div class="rep-dz" id="reparto-drop" onclick="document.getElementById('reparto-pdf').click()"
         style="margin-bottom:12px;"
         ondragover="event.preventDefault();this.classList.add('drag')"
@@ -5791,7 +5809,7 @@ function renderReparto() {
     </div>
 
     <div class="card" style="margin-bottom:16px;">
-      <div class="ctitle">2 · Carica tabella esami di laboratorio — opzionale</div>
+      <div class="rep-dz-title">Carica tabella esami di laboratorio — opzionale</div>
       <div class="rep-dz" id="reparto-xls-drop" onclick="document.getElementById('reparto-xls').click()"
         style="margin-top:8px;"
         ondragover="event.preventDefault();this.classList.add('drag')"
@@ -5808,13 +5826,10 @@ function renderReparto() {
           <textarea id="reparto-xls-text" rows="6" class="mono-input" style="width:100%;font-size:12px;" oninput="window.setRepartoXls(this.value)">${escapeHtml(r.xlsText)}</textarea>
           <button class="btn" style="margin-top:6px;font-size:12px;" onclick="window.clearRepartoXls()">✕ Rimuovi esami</button>
         </div>` : ''}
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-        <button class="btn" onclick="window.copyRepartoCartella()">⎘ Copia cartella anonimizzata</button>
-      </div>
     </div>
 
     <div class="card" style="margin-bottom:16px;">
-      <div class="ctitle">3 · Cosa vuoi chiedere all'AI</div>
+      <div class="rep-dz-title">Cosa vuoi chiedere all'AI</div>
       <div style="margin-top:8px;">${topicChecks}</div>
       <details style="margin-top:12px;">
         <summary style="cursor:pointer;font-size:13px;color:var(--accent);">⚙ Istruzioni di sistema e dei punti (modificabili)</summary>
@@ -5846,11 +5861,12 @@ function renderReparto() {
     </div>
 
     <div class="card">
-      <div class="ctitle">4 · Prompt per l'AI esterna</div>
-      <div style="font-size:12px;color:var(--ink-muted);margin:6px 0 10px;">Il prompt è modificabile. Copialo e incollalo in Claude, ChatGPT o altra AI.</div>
-      <textarea id="reparto-prompt" rows="14" class="mono-input" style="width:100%;font-size:12px;" oninput="window.setRepartoPromptCustom(this.value)">${escapeHtml(r.promptCustom || buildRepartoPrompt())}</textarea>
+      <div class="rep-dz-title">Prompt completo</div>
+      <div class="rep-tabs" style="margin-bottom:10px;">${ptabBtn('full', 'Completo')}${ptabBtn('system', 'Istruzioni')}${ptabBtn('user', 'Caso clinico')}</div>
+      <textarea id="reparto-prompt" rows="14" class="mono-input" style="width:100%;font-size:12px;" ${ptab === 'full' ? `oninput="window.setRepartoPromptCustom(this.value)"` : 'readonly'}>${escapeHtml(repartoPromptViewText(ptab))}</textarea>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
         <button class="btn primary" onclick="window.copyRepartoPrompt()" style="background:var(--ink);color:var(--bg-paper);border-color:var(--ink);">⎘ Copia prompt</button>
+        <button class="btn" onclick="window.copyRepartoCartella()">⎘ Copia cartella anonimizzata</button>
         <button class="btn" onclick="window.rebuildRepartoPrompt()">↻ Rigenera dal modello</button>
         <button class="btn" onclick="window.resetRepartoCartella()">🗑 Reset</button>
       </div>
@@ -5862,6 +5878,11 @@ window.setRepartoRaw = function (v) { state.reparto.rawText = v; };
 window.setRepartoAnon = function (v) { state.reparto.anonText = v; };
 window.setRepartoXls = function (v) { state.reparto.xlsText = v; };
 window.setRepartoPromptCustom = function (v) { state.reparto.promptCustom = v; };
+// Cambia la vista del prompt (Completo / Istruzioni / Caso clinico) e ri-renderizza.
+window.setRepartoPromptTab = function (tab) {
+  state.reparto.promptTab = tab;
+  renderReparto();
+};
 window.setRepartoSys = function (v) {
   state.reparto.systemPrompt = v;
   if (!state.reparto.promptCustom) {
@@ -6003,13 +6024,13 @@ window.setRepartoTopic = function (id, checked) {
 };
 window.rebuildRepartoPrompt = function () {
   state.reparto.promptCustom = '';
-  const ta = document.getElementById('reparto-prompt');
-  if (ta) ta.value = buildRepartoPrompt();
+  state.reparto.promptTab = 'full';
+  renderReparto();
   toast('Prompt rigenerato dal modello', 'info');
 };
 window.copyRepartoPrompt = async function () {
-  const ta = document.getElementById('reparto-prompt');
-  const txt = ta ? ta.value : buildRepartoPrompt();
+  // Copia sempre il prompt completo, a prescindere dalla vista (tab) attiva.
+  const txt = state.reparto.promptCustom || buildRepartoPrompt();
   try { await navigator.clipboard.writeText(txt); toast('Prompt copiato', 'success'); }
   catch (e) { toast('Copia non riuscita', 'error'); }
 };
