@@ -11597,7 +11597,7 @@ function renderModuliList() {
   const cardHtml = (m) => `
     <div class="procedure-card" onclick="navigate('modulo', {slug:'${escapeHtml(m.slug)}'})">
       <div class="procedure-card-title">${escapeHtml(m.titolo || m.slug)}
-        <span class="card-actions">${renderPinButton('modulo', m.slug)}<button class="btn-icon-mini edit-only" onclick="event.stopPropagation();editModuloMeta('${escapeJs(m.slug)}')" title="Modifica nome/slug">✎</button></span>
+        <span class="card-actions">${renderPinButton('modulo', m.slug)}<button class="btn-icon-mini edit-only card-edit-btn" onclick="event.stopPropagation();showNavContextMenu(this, 'modulo', '${escapeJs(m.slug)}')" title="Azioni">⋯</button></span>
       </div>
       ${m.descrizione ? `<div class="procedure-card-desc" style="font-size:13px;color:var(--ink-muted);margin-top:6px;line-height:1.4;">${escapeHtml(m.descrizione)}</div>` : ''}
       ${(m.tag && m.tag.length) ? `<div style="margin-top:8px;">${m.tag.slice(0,3).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
@@ -16889,6 +16889,8 @@ function showNavContextMenu(triggerBtn, kind, slug) {
   } else if (kind === 'modulo') {
     items = [
       { label: 'Apri', action: () => navigate('modulo', {slug}) },
+      { label: 'Modifica nome/dati', action: () => editModuloMeta(slug) },
+      { label: 'Gestione pagine', action: () => apriGestionePagine(slug) },
       { label: 'Rinomina', action: () => renameModulo(slug) },
       { label: 'Elimina', danger: true, action: () => confirmDeleteModulo(slug) },
     ];
@@ -16954,6 +16956,8 @@ function showItemContextMenu(triggerBtn, kind, slug) {
   } else if (kind === 'modulo') {
     items = [
       { label: 'Apri', action: () => navigate('modulo', {slug}) },
+      { label: 'Modifica nome/dati', action: () => editModuloMeta(slug) },
+      { label: 'Gestione pagine', action: () => apriGestionePagine(slug) },
       { label: 'Rinomina', action: () => renameModulo(slug) },
       { label: 'Elimina', danger: true, action: () => confirmDeleteModulo(slug) },
     ];
@@ -17676,6 +17680,24 @@ async function _salvaBoxesRimappati(slug, boxesData) {
   const f = await gh.getFile(`${dir}/boxes.yml`);
   const yamlStr = jsyaml.dump(boxesData, { lineWidth: 120, noRefs: true, sortKeys: false });
   await gh.putFile(`${dir}/boxes.yml`, yamlStr, f ? f.sha : null, `Rimappa box dopo modifica pagine (${slug})`);
+}
+
+// Apre un modulo direttamente in modalità modifica, dove è disponibile la griglia di
+// gestione pagine. Usato dal menu ⋯ delle card moduli.
+async function apriGestionePagine(slug) {
+  navigate('modulo', { slug });
+  // Attendo che la cache del modulo sia popolata da renderModulo/loadModuloDettaglio,
+  // poi attivo l'edit mode (che mostra il pannello con la griglia pagine).
+  let tries = 0;
+  const tryEnable = () => {
+    const c = state.moduliCache && state.moduliCache[slug];
+    if (c && c.pageUrls) {
+      if (!c.editMode) toggleModuloEditMode(slug);
+      return;
+    }
+    if (tries++ < 40) setTimeout(tryEnable, 100); // max ~4s
+  };
+  setTimeout(tryEnable, 150);
 }
 
 // INSERISCI una o più pagine alla posizione `pos` (1-based; pos = N+1 per aggiungere in fondo).
