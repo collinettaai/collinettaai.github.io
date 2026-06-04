@@ -5412,7 +5412,7 @@ function navigate(route, params = {}, navOpts = {}) {
     case 'procedura-edit': renderProceduraEditor(params.slug); break;
     case 'numeri': renderNumeri(params.filter); break;
     case 'moduli': renderModuliList(); break;
-    case 'modulo': renderModulo(params.slug); break;
+    case 'modulo': renderModulo(params.slug, params); break;
     case 'calendario': renderCalendario(params); break;
     case 'cestino': renderCestino(); break;
     case 'segnalazioni': renderSegnalazioni(); break;
@@ -11644,10 +11644,7 @@ function renderModuliList() {
   $('main-content').innerHTML = `
     <div class="page-head">
       <div class="page-eyebrow">${buildBreadcrumb([{label:'Home', route:'home'}])}</div>
-      <h1 class="page-title">Moduli compilabili</h1>
-      <div style="margin-top:12px;font-size:13px;color:var(--ink-muted);">
-        Moduli cartacei istituzionali pre-compilabili con i dati del paziente e del medico.
-      </div>
+      <h1 class="page-title">Moduli</h1>
       <div class="page-actions" style="margin-top:16px;">
         <button class="btn primary" onclick="apriNuovoModuloDialog()" style="background:var(--ink);color:var(--bg-paper);border-color:var(--ink);">+ Nuovo modulo</button>
       </div>
@@ -11787,7 +11784,7 @@ async function editModuloMeta(slug) {
   if (typeof chipsInit === 'function') chipsInit('me-termini-chips', []);
 }
 
-async function renderModulo(slug) {
+async function renderModulo(slug, opts = {}) {
   const m = (state.index.moduli || []).find(x => x.slug === slug);
   if (!m) return renderError('Modulo non trovato', slug);
 
@@ -11795,7 +11792,7 @@ async function renderModulo(slug) {
   const relatedProcs = (m.procedure_correlate || []).map(pid => state.index.procedure.find(p => p.slug === pid)).filter(Boolean);
   $('main-content').innerHTML = `
     <div class="page-head">
-      <div class="page-eyebrow">${buildBreadcrumb([{label:'Moduli compilabili', route:'moduli'}])}</div>
+      <div class="page-eyebrow">${buildBreadcrumb([{label:'Moduli', route:'moduli'}])}</div>
       <h1 class="page-title">${escapeHtml(m.titolo || slug)} ${renderPinButton('modulo', slug)}</h1>
       ${(m.tag && m.tag.length) ? `<div style="margin-top:12px;">${m.tag.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
       <div class="page-meta" style="margin-top:12px;">
@@ -11817,7 +11814,7 @@ async function renderModulo(slug) {
       <div style="font-size:14px;line-height:1.6;color:var(--ink-soft);white-space:pre-wrap;">${escapeHtml(m.note)}</div>
     </div>` : ''}
     <div id="mod-detail-area" style="margin-top:24px;">
-      <p style="color:var(--ink-muted);font-style:italic;">Caricamento boxes.yml e pagine modulo…</p>
+      <p style="color:var(--ink-muted);font-style:italic;">Caricamento modulo…</p>
     </div>
     ${relatedProcs.length ? `
       <div class="related-grid" style="margin-top:32px;">
@@ -11833,6 +11830,12 @@ async function renderModulo(slug) {
   try {
     const det = await loadModuloDettaglio(slug, { skipBoxes: true });
     renderModuloViewer(slug, det);
+    // Apertura diretta in modalità modifica (es. dal menu "Gestione pagine"): ora che il
+    // modulo è in cache, attivo l'edit mode che mostra il pannello con la griglia pagine.
+    if (opts && opts.editPagine) {
+      const c = state.moduliCache[slug];
+      if (c && !c.editMode) toggleModuloEditMode(slug);
+    }
   } catch (e) {
     const area = document.getElementById('mod-detail-area');
     if (area) area.innerHTML = `<div class="callout callout-warning"><p>Errore caricamento modulo: ${escapeHtml(e.message)}</p></div>`;
@@ -16888,10 +16891,8 @@ function showNavContextMenu(triggerBtn, kind, slug) {
     ];
   } else if (kind === 'modulo') {
     items = [
-      { label: 'Apri', action: () => navigate('modulo', {slug}) },
-      { label: 'Modifica nome/dati', action: () => editModuloMeta(slug) },
-      { label: 'Gestione pagine', action: () => apriGestionePagine(slug) },
-      { label: 'Rinomina', action: () => renameModulo(slug) },
+      { label: 'Modifica dati', action: () => editModuloMeta(slug) },
+      { label: 'Modifica pagine', action: () => apriGestionePagine(slug) },
       { label: 'Elimina', danger: true, action: () => confirmDeleteModulo(slug) },
     ];
   }
@@ -16955,10 +16956,8 @@ function showItemContextMenu(triggerBtn, kind, slug) {
     ];
   } else if (kind === 'modulo') {
     items = [
-      { label: 'Apri', action: () => navigate('modulo', {slug}) },
-      { label: 'Modifica nome/dati', action: () => editModuloMeta(slug) },
-      { label: 'Gestione pagine', action: () => apriGestionePagine(slug) },
-      { label: 'Rinomina', action: () => renameModulo(slug) },
+      { label: 'Modifica dati', action: () => editModuloMeta(slug) },
+      { label: 'Modifica pagine', action: () => apriGestionePagine(slug) },
       { label: 'Elimina', danger: true, action: () => confirmDeleteModulo(slug) },
     ];
   } else if (kind === 'contatto') {
@@ -17684,20 +17683,8 @@ async function _salvaBoxesRimappati(slug, boxesData) {
 
 // Apre un modulo direttamente in modalità modifica, dove è disponibile la griglia di
 // gestione pagine. Usato dal menu ⋯ delle card moduli.
-async function apriGestionePagine(slug) {
-  navigate('modulo', { slug });
-  // Attendo che la cache del modulo sia popolata da renderModulo/loadModuloDettaglio,
-  // poi attivo l'edit mode (che mostra il pannello con la griglia pagine).
-  let tries = 0;
-  const tryEnable = () => {
-    const c = state.moduliCache && state.moduliCache[slug];
-    if (c && c.pageUrls) {
-      if (!c.editMode) toggleModuloEditMode(slug);
-      return;
-    }
-    if (tries++ < 40) setTimeout(tryEnable, 100); // max ~4s
-  };
-  setTimeout(tryEnable, 150);
+function apriGestionePagine(slug) {
+  navigate('modulo', { slug, editPagine: true });
 }
 
 // INSERISCI una o più pagine alla posizione `pos` (1-based; pos = N+1 per aggiungere in fondo).
