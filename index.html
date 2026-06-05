@@ -11620,7 +11620,7 @@ function renderModuliList() {
     bodyHtml = categorie.map(cat => {
       const items = gruppi.get(cat);
       const titolo = cat === SENZA ? 'Altri' : cat;
-      return `<details class="categoria-block" open>
+      return `<details class="categoria-block">
         <summary class="categoria-summary">
           <span class="categoria-title">${escapeHtml(titolo)}</span>
           <span class="categoria-count">${items.length}</span>
@@ -12010,9 +12010,8 @@ function renderModuloCompilatore(slug, det) {
       if (c.tipo === 'paziente_completo') {
         det.formValues[c.id] = { cognome: '', nome: '', dataNascita: '' };
       } else if (c.tipo === 'medico_nome') {
-        // Pre-compila col medico loggato come default
+        // Pre-compila col medico loggato come default; i campi restano modificabili
         det.formValues[c.id] = {
-          modalita: 'io',  // 'io' | 'altro'
           cognome: (state.session && state.session.cognome) || '',
           nome: (state.session && state.session.nome) || ''
         };
@@ -12409,19 +12408,14 @@ function _renderCampoInput(c, value, slug) {
       </div>`;
   }
   if (c.tipo === 'medico_nome') {
-    const v = value || { modalita: 'io', cognome: '', nome: '' };
-    const isIo = v.modalita === 'io';
+    const v = value || { cognome: '', nome: '' };
     return `
       <div class="mod-field-group">
         <label class="mod-field-label">${escapeHtml(c.label)}${required}</label>
-        <div class="mod-segmented" role="radiogroup">
-          <button type="button" class="mod-seg ${isIo ? 'active' : ''}" onclick="setModuloMedicoMode('${escapeJs(slug)}','${escapeJs(c.id)}','io')">Io stesso</button>
-          <button type="button" class="mod-seg ${!isIo ? 'active' : ''}" onclick="setModuloMedicoMode('${escapeJs(slug)}','${escapeJs(c.id)}','altro')">Altro medico</button>
-        </div>
-        <div class="mod-field-grid-2" style="margin-top:6px;">
-          <input type="text" placeholder="Cognome" class="mod-input" value="${escapeHtml(v.cognome || '')}" ${isIo ? 'disabled' : ''}
+        <div class="mod-field-grid-2">
+          <input type="text" placeholder="Cognome" class="mod-input" value="${escapeHtml(v.cognome || '')}"
                  oninput="updateModuloField('${escapeJs(slug)}','${escapeJs(c.id)}','cognome',this.value)">
-          <input type="text" placeholder="Nome" class="mod-input" value="${escapeHtml(v.nome || '')}" ${isIo ? 'disabled' : ''}
+          <input type="text" placeholder="Nome" class="mod-input" value="${escapeHtml(v.nome || '')}"
                  oninput="updateModuloField('${escapeJs(slug)}','${escapeJs(c.id)}','nome',this.value)">
         </div>
       </div>`;
@@ -12630,25 +12624,6 @@ function eliminaPazienteSalvato(key, slug, fieldId) {
   if (c) renderModuloCompilatore(slug, c);
 }
 
-function setModuloMedicoMode(slug, fieldId, modalita) {
-  const c = state.moduliCache[slug];
-  if (!c) return;
-  const v = c.formValues[fieldId] || {};
-  v.modalita = modalita;
-  if (modalita === 'io') {
-    v.cognome = (state.session && state.session.cognome) || '';
-    v.nome = (state.session && state.session.nome) || '';
-  } else {
-    // 'altro': lascia che l'utente digiti
-    v.cognome = '';
-    v.nome = '';
-  }
-  c.formValues[fieldId] = v;
-  _persistModulo(slug);
-  // Re-render del compilatore per aggiornare i campi disabled/abilitati e i loro valori
-  renderModuloCompilatore(slug, c);
-}
-
 function resetModuloFormValues(slug) {
   if (!confirm('Resettare tutti i campi compilati?')) return;
   const c = state.moduliCache[slug];
@@ -12720,6 +12695,9 @@ function setModuloZoom(slug, newZoom, mode) {
   } else {
     const sec = document.getElementById('mod-preview-section');
     if (sec) sec.innerHTML = _renderModuloPaginatedPreview(slug, c);
+    // L'immagine può essere già in cache (onload non rispara), quindi forzo il refresh degli
+    // overlay/auto-fit sul nuovo layout zoomato, altrimenti il font non si ricalcola.
+    requestAnimationFrame(() => refreshModuloOverlays(slug));
   }
 
   // Dopo il re-render: ricentro lo scroll sul punto che era al centro prima.
@@ -13513,7 +13491,7 @@ async function salvaModuloBoxes(slug) {
   const nBoxes = (c.boxesData.box || []).length;
   showModal({
     title: 'Salvare le modifiche?',
-    subtitle: `${nBoxes} box verranno salvati su GitHub. La modifica sarà visibile a tutti gli utenti.`,
+    subtitle: ``,
     actions: [
       { label: 'Annulla', variant: 'ghost', onClick: () => closeModal() },
       { label: 'Salva', onClick: () => { closeModal(); _doSalvaModuloBoxes(slug); } }
