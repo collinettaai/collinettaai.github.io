@@ -824,6 +824,24 @@ const ANON_CONFIG = {
       label: '[INTESTAZIONE_REGIONE]', type: 'boiler' },
     { pattern: /^REGIONE\s+VENETO\s*$/gim,
       label: '[INTESTAZIONE_REGIONE]', type: 'boiler' },
+    // ── Blocco intestazione DIMT / BREF (preambolo istituzionale glued) ─────
+    // "(BREF) Regione (del) Veneto Dipartimento … DIMT … AZIENDA OSPEDALE-UNIVERSITA' PADOVA
+    //  … Cod.Fisc./P.IVA … UOC … Accreditamento … Direttore Dott. … Referto"
+    // Rimosso fino a "Referto"; i dati paziente che seguono restano per l'anonimizzazione.
+    { pattern: /(?:BREF\s+)?Regione\s+(?:del\s+)?Veneto\s+Dipartimento[\s\S]*?(?:Direttore\s+Dott(?:\.|essa)?\.?\s+[A-ZÀ-Ü][a-zà-ü']+(?:\s+[A-ZÀ-Ü][a-zà-ü']+)*\s*)?Referto\b/gi,
+      label: '[INTESTAZIONE_DIMT]', type: 'boiler' },
+    // ── Intestazione combinata su riga unica: "Regione (del) Veneto - Azienda Ospedale(-) Università Padova" ──
+    { pattern: /Regione\s+(?:del\s+)?Veneto\s*[-–]\s*Azienda\s+Ospedale\s*[-–]?\s*Universit[àa]['']?\s*Padova/gi,
+      label: '[INTESTAZIONE_AOUP]', type: 'boiler' },
+    // ── "Regione (del) Veneto" ovunque ──────────────────────────────────────
+    { pattern: /\bRegione\s+(?:del\s+)?Veneto\b/gi,
+      label: '[REGIONE]', type: 'boiler' },
+    // ── "Veneto" da solo ovunque (dopo "Regione (del) Veneto") ──────────────
+    { pattern: /\bVeneto\b/gi,
+      label: '[REGIONE]', type: 'boiler' },
+    // ── "Padova" ovunque ────────────────────────────────────────────────────
+    { pattern: /\bPadova\b/gi,
+      label: '[CITTA_AZ]', type: 'boiler' },
     // ── Episodio headers MUST run before ID/date patterns ───────────────────
     { pattern: /Episodio\s+RIC_AO_\S+\s+[A-Z]+\s+[A-Z]+\s+nato\/a\s+il\s+[\d\/]+/gi,
       label: '[INTESTAZIONE_EPISODIO]', type: 'boiler' },
@@ -950,12 +968,21 @@ const ANON_CONFIG = {
       label: '[TELEFONO]', type: 'id' },
     { pattern: /\bSSN\s*:?\s*\d{6,12}\b/gi,
       label: '[SSN]', type: 'id' },
-    { pattern: /Indirizzo\s+(?:domicilio|residenza)\s*:?\s*[^\n\r]+/gi,
+    // ── INDIRIZZO PAZIENTE ──────────────────────────────────────────────────
+    // "Indirizzo domicilio/residenza: <tutto fino al prossimo campo>". Il vecchio
+    // [^\n\r]+ era greedy e nei frontespizi glued (campi separati da doppio spazio,
+    // non da newline) divorava nome paziente/DOB/MMG. Ora si ferma al confine di campo.
+    { pattern: /Indirizzo\s+(?:domicilio|residenza)\s*:?\s*[^\n\r]*?(?=\s{2,}|\s+(?:Indirizzo|Paziente|Nato|Nosologico|MMG|PLS|Data|Reparto|Codice|Tessera|SSN|Egregio|Cartella|Telefono|Cellulare|Recapito|Nazionalit|Cittadinanza)\b|[A-ZÀ-Ü]{2,}Paziente|[\n\r]|$)/gi,
       label: '[INDIRIZZO_PAZIENTE]', type: 'boiler' },
-    { pattern: /\b(?:VIA|VIALE|CORSO|PIAZZA|PIAZZALE|PIAZZETTA|LARGO|VICOLO|STRADA|BORGATA|CONTRADA|LOCALIT[AÀ]|FRAZIONE)\s+[A-Z][A-Z\s,\u00C0-\u00FF]+[,\s]\d+(?:\s*[-\/]\s*[A-Z0-9]+)?/g,
+    // "domicilio:/residenza: <address>" senza la parola "Indirizzo"
+    { pattern: /\b(?:domicilio|residenza)\s*:\s*[^\n\r]*?(?=\s{2,}|\s+(?:Indirizzo|Paziente|Nato|Nosologico|MMG|PLS|Data|Reparto|Codice|Tessera|SSN|Egregio|Cartella|Telefono|Cellulare|Recapito)\b|[\n\r]|$)/gi,
       label: '[INDIRIZZO_PAZIENTE]', type: 'boiler' },
-    // "domicilio: <address>" or "residenza: <address>" after label (richiede confine parola prima)
-    { pattern: /\b(?:domicilio|residenza)\s*:\s*[^\n\r]{5,}/gi,
+    // Toponimo stradale TUTTO MAIUSCOLO + resto fino al prossimo campo (con o senza civico).
+    // Richiede prefisso e token successivo MAIUSCOLI per distinguere gli indirizzi del
+    // frontespizio ("VIA PUOI GIANNI XI 3/A SANT'ORSO") dalla prosa clinica minuscola
+    // ("via piramidale", "per via orale", "la via aerea") che NON va toccata.
+    // Esclude "VIA Giustiniani" (istituzionale, gestita altrove).
+    { pattern: /(?:VIA|V\.LE|VIALE|CORSO|C\.SO|PIAZZA|P\.ZZA|PIAZZALE|PIAZZETTA|LARGO|VICOLO|STRADA|BORGO|BORGATA|CONTRADA|LOCALIT[AÀ]|FRAZIONE|LUNGOMARE|TRAVERSA)\s+(?!Giustiniani\b)(?=[A-ZÀ-Ü])[^\n\r]*?(?=\s{2,}|\s+(?:Indirizzo|Paziente|Nato|Nosologico|MMG|PLS|Data|Reparto|Codice|Tessera|SSN|Egregio|Cartella|Telefono|Cellulare|Recapito|Nazionalit|Cittadinanza)\b|[A-ZÀ-Ü]{2,}Paziente|[\n\r]|$)/g,
       label: '[INDIRIZZO_PAZIENTE]', type: 'boiler' },
     // ALL CAPS patient name before Paziente: keyword
     { pattern: /(?:Paziente|Intestatario|Nominativo)\s*:\s*[A-Z]{2,}(?:\s+[A-Z]{2,})?/g,
@@ -2128,7 +2155,7 @@ function stripBoilerplate(text) {
 // Estrae nome/cognome/data di nascita dal frontespizio PRIMA dell'anonimizzazione.
 // ═══════════════════════════════════════════════════
 function extractPatientData(rawText) {
-  const pd = { nome: '', cognome: '', dataNascita: '' };
+  const pd = { nome: '', cognome: '', dataNascita: '', comune: '', via: '' };
   const lines = rawText.split('\n');
 
   // Helper: expand 2-digit year to 4-digit
@@ -2315,6 +2342,35 @@ function extractPatientData(rawText) {
   function cap(s){ return s.replace(/\b\w+/g, w => w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()); }
   if (pd.cognome) pd.cognome = cap(pd.cognome);
   if (pd.nome)    pd.nome    = cap(pd.nome);
+
+  // ── Residenza/domicilio del paziente: indirizzo completo + comune ────────
+  // Estratti per rimuovere il COMUNE in TUTTE le sue occorrenze nel documento
+  // (anche fuori dalla riga indirizzo, es. "residente a Sant'Orso"), via global
+  // sweep in anonymizeText. La via/indirizzo è già rimossa strutturalmente dalle
+  // regexRules; qui serve soprattutto a derivare il comune.
+  {
+    // Indirizzo completo del frontespizio: prefisso stradale MAIUSCOLO + resto fino
+    // al confine di campo. Cattura anche il comune in coda (con o senza civico/CAP).
+    const STOP = /\s{2,}|\s+(?:Indirizzo|Paziente|Nato|Nosologico|MMG|PLS|Data|Reparto|Codice|Tessera|SSN|Egregio|Cartella|Telefono|Cellulare|Recapito|Nazionalit|Cittadinanza)\b|[A-ZÀ-Ü]{2,}Paziente|[\n\r]|$/;
+    const addrM = rawText.match(new RegExp(
+      '(?:VIA|V\\.LE|VIALE|CORSO|C\\.SO|PIAZZA|P\\.ZZA|PIAZZALE|PIAZZETTA|LARGO|VICOLO|STRADA|BORGO|BORGATA|CONTRADA|LOCALIT[AÀ]|FRAZIONE|LUNGOMARE|TRAVERSA)\\s+(?!Giustiniani\\b)(?=[A-ZÀ-Ü])[^\\n\\r]*?(?=' + STOP.source + ')'));
+    if (addrM) {
+      pd.via = addrM[0].trim().replace(/\s{2,}/g,' ').replace(/[\s,]+$/,'');
+      // COMUNE in coda all'indirizzo: ultimo gruppo di parole MAIUSCOLE (apostrofo/spazi),
+      // dopo il civico se presente, altrimenti dopo il nome via.
+      let comune = '';
+      const afterCivic = pd.via.match(/\d+\s*(?:[\/]\s*[A-Z0-9]+)?\s+([A-ZÀ-Ü][A-ZÀ-Ü'’]+(?:\s+(?:DI|DEL|DELLA|DELLE|DEGLI|SAN|SANTA|SANT'|SANTO|MONTE|BORGO)?\s*[A-ZÀ-Ü][A-ZÀ-Ü'’]+)*)\s*$/);
+      if (afterCivic) {
+        comune = afterCivic[1].trim();
+      }
+      pd.comune = comune;
+    }
+    // Fallback "<CAP> <COMUNE> (PROV)" quando l'indirizzo non è in formato frontespizio
+    if (!pd.comune) {
+      const comM = rawText.match(/\b\d{5}\s+([A-ZÀ-Ü][A-ZÀ-Ü'’.\s]+?)\s*(?:\(([A-Z]{2})\)|$|\s{2,}|\bCartella\b|\bData\b)/);
+      if (comM) pd.comune = comM[1].trim().replace(/\s{2,}/g,' ');
+    }
+  }
 
   return pd;
 }
@@ -2566,6 +2622,62 @@ function anonymizeText(rawText){
       } catch(e) {}
     }
     pdReps.push({ orig: pd.dataNascita, repl: '[DATA_NASCITA]', type: 'Data sensibile' });
+  }
+
+  // ── Residenza/domicilio: rimuovi comune e via in TUTTE le occorrenze ──────
+  // Estratti dal frontespizio; sostituiti case-insensitive e con apostrofo
+  // tipografico normalizzato (Sant'Orso / SANT'ORSO / sant'orso → [COMUNE]).
+  {
+    const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (pd.via && pd.via.length >= 4) {
+      try {
+        const re = new RegExp(esc(pd.via), 'gi');
+        const before = clean;
+        clean = clean.replace(re, '[INDIRIZZO_PAZIENTE]');
+        if (clean !== before) pdReps.push({ orig: pd.via, repl: '[INDIRIZZO_PAZIENTE]', type: 'Indirizzo' });
+      } catch(e) {}
+      // Sweep del NOME VIA specifico ovunque, anche senza civico e in prosa mixed-case
+      // (es. "Via Puoi Gianni"). Usa il toponimo estratto, NON il generico "via", quindi
+      // non tocca "via piramidale"/"via orale"/altre vie cliniche o stradali diverse.
+      try {
+        const pm = pd.via.match(/^(VIA|V\.LE|VIALE|CORSO|C\.SO|PIAZZA|P\.ZZA|PIAZZALE|PIAZZETTA|LARGO|VICOLO|STRADA|BORGO|BORGATA|CONTRADA|LOCALIT[AÀ]|FRAZIONE|LUNGOMARE|TRAVERSA)\s+/i);
+        if (pm) {
+          let rest = pd.via.slice(pm[0].length);
+          // tronca il comune in coda, se l'abbiamo estratto
+          if (pd.comune) rest = rest.replace(new RegExp('\\s*' + esc(pd.comune) + '\\s*$', 'i'), '');
+          // parole alfabetiche del nome via (scarta numeri romani isolati e civici)
+          const words = rest.split(/\s+/).filter(w => /[A-Za-zÀ-ü']/.test(w) && !/^[IVXLCDM]+$/i.test(w) && !/\d/.test(w));
+          if (words.length >= 1) {
+            const core = words.map(esc).join('\\s+');
+            const tail = '(?:\\s+[IVXLCDM]+\\b)?(?:\\s*,?\\s*\\d+\\s*(?:[\\/]\\s*[A-Z0-9]+)?)?';
+            const sweepPat = '\\b' + esc(pm[1]) + '\\s+' + core + tail;
+            const re2 = new RegExp(sweepPat, 'gi');
+            const before2 = clean;
+            clean = clean.replace(re2, '[INDIRIZZO_PAZIENTE]');
+            if (clean !== before2) pdReps.push({ orig: pm[1] + ' ' + words.join(' '), repl: '[INDIRIZZO_PAZIENTE]', type: 'Indirizzo' });
+            // Sweep del toponimo NUDO (senza prefisso "via"), es. "Puoi Gianni" o "Roma".
+            // Applicato anche ai toponimi di 1 sola parola, su richiesta: il nome via
+            // estratto dal frontespizio viene rimosso ovunque, con confini parola.
+            {
+              const bareRe = new RegExp('(?<!\\p{L})' + core + '(?!\\p{L})', 'giu');
+              const before3 = clean;
+              clean = clean.replace(bareRe, '[INDIRIZZO_PAZIENTE]');
+              if (clean !== before3) pdReps.push({ orig: words.join(' '), repl: '[INDIRIZZO_PAZIENTE]', type: 'Indirizzo' });
+            }
+          }
+        }
+      } catch(e) {}
+    }
+    if (pd.comune && pd.comune.length >= 3) {
+      // Confini tolleranti all'apostrofo (Sant'Orso); evita match dentro parole più lunghe.
+      const pat = '(?<!\\p{L})' + esc(pd.comune) + '(?!\\p{L})';
+      try {
+        const re = new RegExp(pat, 'giu');
+        const before = clean;
+        clean = clean.replace(re, '[COMUNE]');
+        if (clean !== before) pdReps.push({ orig: pd.comune, repl: '[COMUNE]', type: 'Comune' });
+      } catch(e) {}
+    }
   }
 
   // Stage 1 (regex strutturale) + Stage 2 (dizionario) con freeze/restore delle righe lab
