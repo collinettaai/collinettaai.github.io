@@ -93,21 +93,36 @@ CONFIG = {
 
 ## Orientarsi nel codice
 
-`index.html` è organizzato in blocchi commentati
-`/* ======== NOMESEZIONE ======== */`.
+`index.html` contiene due blocchi distinti, entrambi organizzati in sezioni
+commentate `/* ======== NOMESEZIONE ======== */`:
+
+- **Blocco CSS** — `<style>`, righe ~83–1743: BOOT SPLASH · ATTIVITÀ
+  RECENTE (admin) · MODULI COMPILABILI · NUMERO ROW (compact mobile-first) ·
+  CALENDARIO · BLOCCHI TIPIZZATI · EDITOR A BLOCCHI (Fase 2)
+- **Blocco JS** — `<script>`, righe ~1905–20319: CONFIG · BOOTSTRAP PAT ·
+  UTILITIES · CHIPS MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS ·
+  CONDIVISIONE LINK · EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API +
+  IN-MEMORY CACHES · CONTENT PARSING · STATE · INDEX BUILD · LOCKS · LOGIN ·
+  ROUTER · VIEW HELPERS · VIEW HOME · VIEW PROCEDURA · BLOCCHI TIPIZZATI
+  (schema a blocchi) · VIEW EDITOR · EDITOR A BLOCCHI (Fase 2) · AI IMPORT
+  WORKFLOW · VIEW NUMERI (rubrica) · VIEW MODULI COMPILABILI (+ STATO) ·
+  MODULI — GENERAZIONE OUTPUT / PERSISTENZA GITHUB / CREAZIONE NUOVO
+  MODULO · VIEW CALENDARIO · VIEW CESTINO + CESTINO OPERATIONS · GESTIONE
+  UTENTI (admin) · ATTIVITÀ RECENTE (admin) · CESTINO USER-PREFS (admin) ·
+  NAV TREE & EDIT MODE · MODULI — GESTIONE PAGINE · SEARCH · MODAL · INIT
+
+Alcuni nomi ricorrono in entrambi i blocchi (es. "BLOCCHI TIPIZZATI",
+"ATTIVITÀ RECENTE"): non sono duplicati, sono la stessa feature vista dal
+lato stile (CSS) e dal lato logica (JS) — quando cerchi per nome, controlla
+in quale blocco ti trovi.
+
+Alcune funzionalità della tabella sotto (LetterAI loader, Sezione Reparto,
+home contatti fissati, riordino rubrica, `renderNumeroRow`, spinner/
+segnalazioni) non hanno un blocco commento dedicato: si trovano cercando il
+nome della funzione, non un marcatore di sezione.
 
 **Non fidarti dei numeri di riga**: il file evolve e si spostano a ogni edit.
 Cerca sempre per marcatore di commento o nome di funzione.
-
-Sezioni principali, in ordine: CONFIG · BOOTSTRAP PAT · UTILITIES ·
-LETTERAAI LOADER · CHIPS MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS ·
-CONDIVISIONE LINK · CRYPTO · GITHUB API + CACHE · CONTENT PARSING · STATE ·
-INDEX BUILD · LOCKS · LOGIN · ROUTER · VIEW HELPERS · VIEW HOME ·
-SEZIONE REPARTO · VIEW PROCEDURA · BLOCCHI TIPIZZATI · VIEW EDITOR ·
-AI IMPORT · VIEW NUMERI (rubrica) · HOME CONTATTI FISSATI · RIORDINO
-RUBRICA · renderNumeroRow · VIEW MODULI · VIEW CALENDARIO · VIEW CESTINO ·
-GESTIONE UTENTI · ATTIVITÀ RECENTE · NAV TREE · SEARCH · MODAL · INIT ·
-SPINNER + SEGNALAZIONI
 
 ### Dove metto le mani per…
 
