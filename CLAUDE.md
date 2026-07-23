@@ -197,7 +197,25 @@ Niente bundle inline, niente service worker, PWA offline non implementata.
 
 ---
 
-## In corso
+## In corso — split di index.html
 
-Split di `index.html` in moduli ES separati. Vedi il branch
-`refactor/split-modules` quando attivo.
+Estrazione del blocco JS principale (righe ~1905–20319) in file separati
+sotto `js/`, caricati con `<script src>` classici.
+
+**Decisione architetturale: NIENTE ES modules.** Il codice usa `onclick="fn()"`
+in centinaia di punti, che richiede le funzioni su `window`. Gli script classici
+condividono lo scope globale, quindi lo spostamento è puro trasferimento di
+testo senza toccare la logica. Con `type="module"` ogni funzione andrebbe
+riesposta a mano.
+
+Conseguenze da rispettare:
+- L'ordine dei `<script src>` in `index.html` conta: le definizioni devono
+  precedere gli usi al momento del caricamento.
+- Tagliare sempre per confine di funzione, mai per numero di riga.
+- `_stampaPagineA4` contiene un `<script>` annidato in un template literal
+  (`<\/script>` con escape): non spezzare quella funzione.
+- Verificare con `node check.js` dopo ogni estrazione. Baseline: tag 8,
+  parsati 2, errori 0.
+
+Ordine previsto: splash → schede → rubrica → moduli → calendario →
+admin → reparto → core (per ultimo).
