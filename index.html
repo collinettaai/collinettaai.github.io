@@ -73,6 +73,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
+<script src="js/costanti.js"></script>
 <!-- Le seguenti librerie sono caricate lazy on-demand via _ensureLib():
      - jsPDF (~360 KB): solo al click "Scarica PDF" su moduli compilati
      - PDF.js (~370 KB): solo all'apertura del wizard "Nuovo modulo" da PDF
@@ -7249,48 +7250,6 @@ function copyDiarioNote(btn) {
     () => toast('Copia fallita', 'error')
   );
 }
-
-const CATEGORIA_LABELS = {
-  bedside: 'Bedside',
-  richieste: 'Richieste',
-  farmacologiche: 'Farmacologiche',
-  emergenze: 'Emergenze',
-  gestione: 'Gestione',
-  clinica: 'Clinica',
-  'procedure-reparto': 'Procedura reparto',
-  workflow: 'Workflow',
-  educational: 'Educational'
-};
-
-// Nasconde temporaneamente il livello "sottocategoria" sotto le categorie di procedure
-// (es. procedure/bedside/...): le schede vengono mostrate direttamente sotto la categoria,
-// sia nella sidebar sia nella pagina categoria. La logica di raggruppamento resta intatta:
-// rimettere a false per riattivare il livello sottocategoria.
-const HIDE_SUBCATEGORIES = true;
-
-const SOTTO_LABELS = {
-  'liquorali': 'Liquorali',
-  'cardiologia': 'Cardiologia',
-  'pneumologia': 'Pneumologia',
-  'neuroimaging': 'Neuroimaging',
-  'altri-imaging': 'Altri imaging',
-  'neurofisiologia': 'Neurofisiologia',
-  'angiologia': 'Angiologia',
-  'invii-campioni': 'Invii campioni',
-  'altre-richieste': 'Altre richieste',
-  'emoderivati': 'Emoderivati',
-  'immunoterapia': 'Immunoterapia',
-  'pompe-infusione': 'Pompe infusione',
-  'somministrazioni-complesse': 'Somministrazioni complesse',
-  'monitoraggi-ematici': 'Monitoraggi ematici',
-  'prognosi': 'Prognosi',
-  'gestione-post-acuta': 'Gestione post-acuta',
-  'scale-cliniche': 'Scale cliniche',
-  'consulenze': 'Consulenze',
-  'emergenze': 'Emergenze',
-  'dimissione': 'Dimissione',
-  'ingresso': 'Ingresso'
-};
 
 function showHistoryModal(slug) {
   const proc = state.index.procedure.find(p => p.slug === slug);
