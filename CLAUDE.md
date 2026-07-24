@@ -151,18 +151,27 @@ attuale:
 - **`js/admin.js`**: GESTIONE UTENTI · ATTIVITÀ RECENTE · CESTINO
   USER-PREFS (tre sezioni admin-only contigue). Export verso ROUTER:
   `renderGestioneUtenti`, `renderAttivita`, `renderCestinoUtenti`
+- **`js/reparto.js`**: SEZIONE REPARTO (consulto AI su paziente ricoverato:
+  carica cartella → anonimizza via regex di LetteraAI → prompt modificabile).
+  Costanti `REPARTO_*` (incluso il template literal `REPARTO_SYSTEM_DEFAULT`)
+  e init idempotente `state.reparto = state.reparto || {…}` a top-level, più
+  handler `window.setReparto*/saveReparto*/…` (stile assegnazione a `window`,
+  non `function`). Export verso ROUTER: `renderReparto`. Il CSS `.rep-*`
+  resta in `index.html`. NB: le occorrenze di "reparto" altrove (kind
+  contatto in rubrica, campo "Sede / Reparto" nei moduli, voce nav)
+  NON sono questa sezione
 - **`js/splash.js`**: animazione splash (emblema diapason), caricato per
   ultimo, dopo il blocco principale
-- **Blocco JS principale** — `<script>` in `index.html`, righe ~1905–~6284
-  e ~6291–fine (spezzato in due dai `<script src>` di schede.js, rubrica.js,
-  moduli.js, calendario.js, cestino.js e admin.js): CONFIG · BOOTSTRAP PAT ·
-  UTILITIES · CHIPS MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS ·
-  CONDIVISIONE LINK · EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API +
-  IN-MEMORY CACHES · CONTENT PARSING · STATE · INDEX BUILD · LOCKS · LOGIN ·
-  ROUTER · VIEW HELPERS · VIEW HOME · SEZIONE REPARTO · VISTE LISTA
-  PROCEDURE · [qui si innestano schede.js, rubrica.js, moduli.js,
-  calendario.js, cestino.js e admin.js] · NAV TREE & EDIT MODE · SEARCH ·
-  MODAL · INIT
+- **Blocco JS principale** — `<script>` in `index.html`, ora spezzato in
+  TRE segmenti inline dai `<script src>` estratti: (A) righe ~1905–~5710
+  (CONFIG → VIEW HOME) · [reparto.js] · (B) ~5712–~5840 (VISTE LISTA
+  PROCEDURE) · [schede.js, rubrica.js, moduli.js, calendario.js, cestino.js,
+  admin.js] · (C) ~5847–fine (NAV TREE & EDIT MODE · SEARCH · MODAL · INIT).
+  Contenuto del segmento A: CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS
+  MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS · CONDIVISIONE LINK ·
+  EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API + IN-MEMORY CACHES ·
+  CONTENT PARSING · STATE · INDEX BUILD · LOCKS · LOGIN · ROUTER · VIEW
+  HELPERS · VIEW HOME
 
 Alcuni nomi ricorrono in blocco CSS e blocco JS (es. "BLOCCHI TIPIZZATI",
 "ATTIVITÀ RECENTE"): non sono duplicati, sono la stessa feature vista dal
@@ -207,7 +216,7 @@ Cerca sempre per marcatore di commento o nome di funzione.
 | Navigazione, history, scroll-restore | `navigate`, `_onHistoryPop`, `shouldGuardBack`, `_onPopState`, `_scrollByPos` |
 | Gesti touch mobile + splash | handler `touchstart`, `hideBootSplash` |
 | Altezza topbar | `initTopbarMeasure` + CSS `--topbar-height` |
-| Sezione Reparto | `renderReparto` + costanti `REPARTO_*` |
+| Sezione Reparto | `js/reparto.js`: `renderReparto` + costanti `REPARTO_*` + CSS `.rep-*` (in `index.html`) |
 | Calendario (griglia/eventi/import) | `js/calendario.js`: `renderCalendario`, `openCalEventModal`, `parseGuardieText` + CSS `.cal-*` (in `index.html`) |
 | Cestino contenuti (schede/procedure) | `js/cestino.js`: `renderCestino`, `confirmDelete`, `nuovaProcedura` |
 | Admin: utenti / attività / cestino prefs | `js/admin.js`: `renderGestioneUtenti`, `renderAttivita`, `renderCestinoUtenti` |
@@ -313,7 +322,10 @@ Stato:
 - ✅ `js/cestino.js` — VIEW CESTINO + CESTINO OPERATIONS (cestino contenuti)
 - ✅ `js/admin.js` — GESTIONE UTENTI · ATTIVITÀ RECENTE · CESTINO USER-PREFS
   (trio admin contiguo)
-- ⬜ reparto → nav tree → search → modal → core/init (per ultimo)
+- ✅ `js/reparto.js` — SEZIONE REPARTO (taglio in mezzo al blocco 1: ha
+  spezzato il primo `<script>` inline in due segmenti A/B; CSS `.rep-*`
+  lasciato in `index.html`)
+- ⬜ nav tree → search → modal → core/init (per ultimo)
 
-Baseline `check.js` attuale (dopo cestino.js + admin.js): `tag 16
-parsati 3  saltati 13  errori 0`.
+Baseline `check.js` attuale (dopo reparto.js): `tag 18  parsati 4
+saltati 14  errori 0`.
