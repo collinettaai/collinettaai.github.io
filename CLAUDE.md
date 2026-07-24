@@ -143,18 +143,26 @@ attuale:
   `.cal-*` NON è stato spostato, resta nel blocco `<style>` di `index.html`.
   Unico export verso l'esterno: `renderCalendario` (chiamata dal ROUTER).
   Legge/scrive lo stato condiviso `state.index.calendar`
+- **`js/cestino.js`**: VIEW CESTINO + CESTINO OPERATIONS (cestino dei
+  contenuti: schede/procedure). Definisce anche `nuovaProcedura` e
+  `confirmDelete`, usati da viste lista procedure, NAV TREE e schede.js.
+  Export verso ROUTER: `renderCestino`. NB: distinto da CESTINO USER-PREFS
+  (in `js/admin.js`), che è il cestino delle preferenze utente
+- **`js/admin.js`**: GESTIONE UTENTI · ATTIVITÀ RECENTE · CESTINO
+  USER-PREFS (tre sezioni admin-only contigue). Export verso ROUTER:
+  `renderGestioneUtenti`, `renderAttivita`, `renderCestinoUtenti`
 - **`js/splash.js`**: animazione splash (emblema diapason), caricato per
   ultimo, dopo il blocco principale
 - **Blocco JS principale** — `<script>` in `index.html`, righe ~1905–~6284
-  e ~6289–fine (spezzato in due dai `<script src>` di schede.js, rubrica.js,
-  moduli.js e calendario.js): CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS
-  MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS · CONDIVISIONE LINK ·
-  EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API + IN-MEMORY CACHES ·
-  CONTENT PARSING · STATE · INDEX BUILD · LOCKS · LOGIN · ROUTER · VIEW
-  HELPERS · VIEW HOME · [qui si innestano schede.js, rubrica.js, moduli.js
-  e calendario.js] · VIEW CESTINO + CESTINO OPERATIONS · GESTIONE UTENTI
-  (admin) · ATTIVITÀ RECENTE (admin) · CESTINO USER-PREFS (admin) · NAV
-  TREE & EDIT MODE · SEARCH · MODAL · INIT
+  e ~6291–fine (spezzato in due dai `<script src>` di schede.js, rubrica.js,
+  moduli.js, calendario.js, cestino.js e admin.js): CONFIG · BOOTSTRAP PAT ·
+  UTILITIES · CHIPS MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS ·
+  CONDIVISIONE LINK · EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API +
+  IN-MEMORY CACHES · CONTENT PARSING · STATE · INDEX BUILD · LOCKS · LOGIN ·
+  ROUTER · VIEW HELPERS · VIEW HOME · SEZIONE REPARTO · VISTE LISTA
+  PROCEDURE · [qui si innestano schede.js, rubrica.js, moduli.js,
+  calendario.js, cestino.js e admin.js] · NAV TREE & EDIT MODE · SEARCH ·
+  MODAL · INIT
 
 Alcuni nomi ricorrono in blocco CSS e blocco JS (es. "BLOCCHI TIPIZZATI",
 "ATTIVITÀ RECENTE"): non sono duplicati, sono la stessa feature vista dal
@@ -201,6 +209,8 @@ Cerca sempre per marcatore di commento o nome di funzione.
 | Altezza topbar | `initTopbarMeasure` + CSS `--topbar-height` |
 | Sezione Reparto | `renderReparto` + costanti `REPARTO_*` |
 | Calendario (griglia/eventi/import) | `js/calendario.js`: `renderCalendario`, `openCalEventModal`, `parseGuardieText` + CSS `.cal-*` (in `index.html`) |
+| Cestino contenuti (schede/procedure) | `js/cestino.js`: `renderCestino`, `confirmDelete`, `nuovaProcedura` |
+| Admin: utenti / attività / cestino prefs | `js/admin.js`: `renderGestioneUtenti`, `renderAttivita`, `renderCestinoUtenti` |
 | Generatore lettere | `letteraai-module.js` via `ensureLetterAI` / `_openLetterAI` |
 | Lettura/scrittura GitHub | oggetto `gh` |
 | Permessi admin | `isAdmin()` |
@@ -300,7 +310,10 @@ Stato:
   · GESTIONE PAGINE (tre regioni non contigue riunite in un file)
 - ✅ `js/calendario.js` — VIEW CALENDARIO (blocco contiguo, listener
   top-level incluso; CSS `.cal-*` lasciato in `index.html`)
-- ⬜ admin → reparto → core (per ultimo)
+- ✅ `js/cestino.js` — VIEW CESTINO + CESTINO OPERATIONS (cestino contenuti)
+- ✅ `js/admin.js` — GESTIONE UTENTI · ATTIVITÀ RECENTE · CESTINO USER-PREFS
+  (trio admin contiguo)
+- ⬜ reparto → nav tree → search → modal → core/init (per ultimo)
 
-Baseline `check.js` attuale (dopo calendario.js): `tag 14  parsati 3
-saltati 11  errori 0`.
+Baseline `check.js` attuale (dopo cestino.js + admin.js): `tag 16
+parsati 3  saltati 13  errori 0`.
