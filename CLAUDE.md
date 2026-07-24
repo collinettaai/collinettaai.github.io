@@ -173,6 +173,17 @@ Cerca sempre per marcatore di commento o nome di funzione.
   modulo LetteraAI caricato.
 - **PAT in localStorage**: problema architetturale noto, in attesa di un backend
   proxy. Non è una svista.
+- **`<script src>` inserito dentro un blocco `<script>` ancora aperto**: il
+  tokenizer HTML (e la regex di `check.js`) chiude il blocco al primo
+  `</script>` che incontra — anche se è quello embedded nel tag appena
+  inserito. Il codice successivo finisce trattato come HTML, non JS, e
+  `check.js` non lo segnala (stesso punto cieco del browser). Quando uno
+  split taglia un pezzo dal *mezzo* del blocco principale, il nuovo
+  `<script src=...>` va sempre incorniciato così: `</script>` (chiude la
+  parte precedente) · `<script src="...">` · `<script>` (riapre per la
+  parte restante). Verifica empirica: cerca `<script\b[^>]*>([\s\S]*?)<\/script>`
+  su tutto il file e controlla che i confini di ciascun match coincidano con
+  quelli attesi, non fidarti solo di `node check.js`.
 
 ---
 

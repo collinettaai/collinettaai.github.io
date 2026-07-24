@@ -33,7 +33,7 @@ function checkIndexHtml(path = 'index.html') {
 
   while ((m = re.exec(html)) !== null) {
     found++;
-    const tag = m[0];
+    const tag = m[0].slice(0, m[0].indexOf('>') + 1);
     const code = m[1];
 
     // salta <script src="..."> e blocchi vuoti
