@@ -117,7 +117,9 @@ attuale:
 
 - **Blocco CSS** — `<style>` in `index.html`, righe ~83–1743: BOOT SPLASH ·
   ATTIVITÀ RECENTE (admin) · MODULI COMPILABILI · NUMERO ROW (compact
-  mobile-first) · CALENDARIO · BLOCCHI TIPIZZATI · EDITOR A BLOCCHI (Fase 2)
+  mobile-first) · CALENDARIO (regole `.cal-*`: restano qui anche dopo
+  l'estrazione del JS in `js/calendario.js`) · BLOCCHI TIPIZZATI · EDITOR
+  A BLOCCHI (Fase 2)
 - **`js/costanti.js`**: `CATEGORIA_LABELS`, `SOTTO_LABELS`,
   `HIDE_SUBCATEGORIES` — caricato per primo, subito dopo i CDN (usato da
   più sezioni: VIEW HOME, EXPORT INDICE, CESTINO, NAV TREE, SEARCH)
@@ -132,18 +134,27 @@ attuale:
   Tre regioni non contigue nell'`index.html` originale, riunite in un solo
   file; `renameModulo` resta nel blocco principale (disabilitato, non
   spostato)
+- **`js/calendario.js`**: VIEW CALENDARIO — costanti `CAL_CATEGORIES`,
+  `CAL_LEZIONE_ANNI`, `CAL_DOW`, `CAL_MONTHS`, griglia/legenda/eventi,
+  editor evento e ricorrenze, persistenza `content/calendar.yml`, import
+  guardie (parser testo + PDF via `ensureLetterAI`). Include un listener
+  top-level (`document.addEventListener('click', …)`) che chiude il
+  dropdown "lezioni" al click fuori: gira al load, autocontenuto. Il CSS
+  `.cal-*` NON è stato spostato, resta nel blocco `<style>` di `index.html`.
+  Unico export verso l'esterno: `renderCalendario` (chiamata dal ROUTER).
+  Legge/scrive lo stato condiviso `state.index.calendar`
 - **`js/splash.js`**: animazione splash (emblema diapason), caricato per
   ultimo, dopo il blocco principale
 - **Blocco JS principale** — `<script>` in `index.html`, righe ~1905–~6284
-  e ~6288–fine (spezzato in due dai `<script src>` di schede.js, rubrica.js
-  e moduli.js): CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS MULTI-SELECT ·
-  USER PREFERENCES · IMAGE HELPERS · CONDIVISIONE LINK · EXPORT INDICE
-  (NotebookLM) · CRYPTO · GITHUB API + IN-MEMORY CACHES · CONTENT PARSING ·
-  STATE · INDEX BUILD · LOCKS · LOGIN · ROUTER · VIEW HELPERS · VIEW HOME ·
-  [qui si innestano schede.js, rubrica.js e moduli.js] · VIEW CALENDARIO ·
-  VIEW CESTINO + CESTINO OPERATIONS · GESTIONE UTENTI (admin) · ATTIVITÀ
-  RECENTE (admin) · CESTINO USER-PREFS (admin) · NAV TREE & EDIT MODE ·
-  SEARCH · MODAL · INIT
+  e ~6289–fine (spezzato in due dai `<script src>` di schede.js, rubrica.js,
+  moduli.js e calendario.js): CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS
+  MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS · CONDIVISIONE LINK ·
+  EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API + IN-MEMORY CACHES ·
+  CONTENT PARSING · STATE · INDEX BUILD · LOCKS · LOGIN · ROUTER · VIEW
+  HELPERS · VIEW HOME · [qui si innestano schede.js, rubrica.js, moduli.js
+  e calendario.js] · VIEW CESTINO + CESTINO OPERATIONS · GESTIONE UTENTI
+  (admin) · ATTIVITÀ RECENTE (admin) · CESTINO USER-PREFS (admin) · NAV
+  TREE & EDIT MODE · SEARCH · MODAL · INIT
 
 Alcuni nomi ricorrono in blocco CSS e blocco JS (es. "BLOCCHI TIPIZZATI",
 "ATTIVITÀ RECENTE"): non sono duplicati, sono la stessa feature vista dal
@@ -189,6 +200,7 @@ Cerca sempre per marcatore di commento o nome di funzione.
 | Gesti touch mobile + splash | handler `touchstart`, `hideBootSplash` |
 | Altezza topbar | `initTopbarMeasure` + CSS `--topbar-height` |
 | Sezione Reparto | `renderReparto` + costanti `REPARTO_*` |
+| Calendario (griglia/eventi/import) | `js/calendario.js`: `renderCalendario`, `openCalEventModal`, `parseGuardieText` + CSS `.cal-*` (in `index.html`) |
 | Generatore lettere | `letteraai-module.js` via `ensureLetterAI` / `_openLetterAI` |
 | Lettura/scrittura GitHub | oggetto `gh` |
 | Permessi admin | `isAdmin()` |
@@ -286,7 +298,9 @@ Stato:
 - ✅ `js/moduli.js` — VIEW MODULI COMPILABILI · GENERAZIONE OUTPUT ·
   PERSISTENZA GITHUB · CREAZIONE NUOVO MODULO · ELIMINAZIONE (ex NAV TREE)
   · GESTIONE PAGINE (tre regioni non contigue riunite in un file)
-- ⬜ calendario → admin → reparto → core (per ultimo)
+- ✅ `js/calendario.js` — VIEW CALENDARIO (blocco contiguo, listener
+  top-level incluso; CSS `.cal-*` lasciato in `index.html`)
+- ⬜ admin → reparto → core (per ultimo)
 
-Baseline `check.js` attuale (dopo moduli.js): `tag 13  parsati 3  saltati 10
-errori 0`.
+Baseline `check.js` attuale (dopo calendario.js): `tag 14  parsati 3
+saltati 11  errori 0`.
