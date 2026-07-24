@@ -28,6 +28,20 @@ Deploy: GitHub Pages → `https://collinettaai.github.io`.
 
 ---
 
+## Branch di lavoro
+
+Lo split di `index.html` procede **direttamente su `main`**: il branch
+contiene già le estrazioni di `js/splash.js`, `js/costanti.js`,
+`js/schede.js` e `js/rubrica.js` (vedi "In corso — split di index.html").
+Non esistono branch di lavoro separati per questo split.
+
+Le sessioni remote devono, prima di modificare qualsiasi file:
+1. verificare il branch corrente con `git branch --show-current`;
+2. se non è `main`, allinearsi a `main` (es. `git checkout main` +
+   `git pull`) prima di procedere.
+
+---
+
 ## Verifica (obbligatoria dopo ogni modifica)
 
 `index.html` — parsa tutti i blocchi `<script>` inline:
@@ -106,26 +120,30 @@ attuale:
   mobile-first) · CALENDARIO · BLOCCHI TIPIZZATI · EDITOR A BLOCCHI (Fase 2)
 - **`js/costanti.js`**: `CATEGORIA_LABELS`, `SOTTO_LABELS`,
   `HIDE_SUBCATEGORIES` — caricato per primo, subito dopo i CDN (usato da
-  più sezioni: VIEW HOME, EXPORT INDICE, CESTINO, NAV TREE, MODULI GESTIONE
-  PAGINE, SEARCH)
+  più sezioni: VIEW HOME, EXPORT INDICE, CESTINO, NAV TREE, SEARCH)
 - **`js/schede.js`**: VIEW PROCEDURA · BLOCCHI TIPIZZATI (schema a blocchi)
   · VIEW EDITOR · EDITOR A BLOCCHI (Fase 2) · AI IMPORT WORKFLOW
 - **`js/rubrica.js`**: VIEW NUMERI (comprende anche HOME CONTATTI FISSATI
   e RIORDINO RUBRICA, senza marcatore di commento proprio)
+- **`js/moduli.js`**: VIEW MODULI COMPILABILI (+ STATO) · MODULI —
+  GENERAZIONE OUTPUT / PERSISTENZA GITHUB / CREAZIONE NUOVO MODULO ·
+  MODULI — ELIMINAZIONE (`confirmDeleteModulo`/`doDeleteModulo`, in
+  origine dentro NAV TREE) · MODULI — GESTIONE PAGINE (inserisci/rimuovi).
+  Tre regioni non contigue nell'`index.html` originale, riunite in un solo
+  file; `renameModulo` resta nel blocco principale (disabilitato, non
+  spostato)
 - **`js/splash.js`**: animazione splash (emblema diapason), caricato per
   ultimo, dopo il blocco principale
 - **Blocco JS principale** — `<script>` in `index.html`, righe ~1905–~6284
-  e ~6287–fine (spezzato in due dai `<script src>` di schede.js e
-  rubrica.js): CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS MULTI-SELECT ·
+  e ~6288–fine (spezzato in due dai `<script src>` di schede.js, rubrica.js
+  e moduli.js): CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS MULTI-SELECT ·
   USER PREFERENCES · IMAGE HELPERS · CONDIVISIONE LINK · EXPORT INDICE
   (NotebookLM) · CRYPTO · GITHUB API + IN-MEMORY CACHES · CONTENT PARSING ·
   STATE · INDEX BUILD · LOCKS · LOGIN · ROUTER · VIEW HELPERS · VIEW HOME ·
-  [qui si innestano schede.js e rubrica.js] · VIEW MODULI COMPILABILI
-  (+ STATO) · MODULI — GENERAZIONE OUTPUT / PERSISTENZA GITHUB /
-  CREAZIONE NUOVO MODULO · VIEW CALENDARIO · VIEW CESTINO + CESTINO
-  OPERATIONS · GESTIONE UTENTI (admin) · ATTIVITÀ RECENTE (admin) ·
-  CESTINO USER-PREFS (admin) · NAV TREE & EDIT MODE · MODULI — GESTIONE
-  PAGINE · SEARCH · MODAL · INIT
+  [qui si innestano schede.js, rubrica.js e moduli.js] · VIEW CALENDARIO ·
+  VIEW CESTINO + CESTINO OPERATIONS · GESTIONE UTENTI (admin) · ATTIVITÀ
+  RECENTE (admin) · CESTINO USER-PREFS (admin) · NAV TREE & EDIT MODE ·
+  SEARCH · MODAL · INIT
 
 Alcuni nomi ricorrono in blocco CSS e blocco JS (es. "BLOCCHI TIPIZZATI",
 "ATTIVITÀ RECENTE"): non sono duplicati, sono la stessa feature vista dal
@@ -265,7 +283,10 @@ Stato:
 - ✅ `js/schede.js` — VIEW PROCEDURA · BLOCCHI TIPIZZATI · VIEW EDITOR ·
   EDITOR A BLOCCHI · AI IMPORT WORKFLOW
 - ✅ `js/rubrica.js` — VIEW NUMERI (+ home contatti fissati, riordino rubrica)
-- ⬜ moduli → calendario → admin → reparto → core (per ultimo)
+- ✅ `js/moduli.js` — VIEW MODULI COMPILABILI · GENERAZIONE OUTPUT ·
+  PERSISTENZA GITHUB · CREAZIONE NUOVO MODULO · ELIMINAZIONE (ex NAV TREE)
+  · GESTIONE PAGINE (tre regioni non contigue riunite in un file)
+- ⬜ calendario → admin → reparto → core (per ultimo)
 
-Baseline `check.js` attuale (dopo rubrica.js): `tag 12  parsati 3  saltati 9
+Baseline `check.js` attuale (dopo moduli.js): `tag 13  parsati 3  saltati 10
 errori 0`.
