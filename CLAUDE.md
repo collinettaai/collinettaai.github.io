@@ -20,6 +20,11 @@ Deploy: GitHub Pages → `https://collinettaai.github.io`.
 4. **Se ho segnalato che una modifica non era richiesta, va revertita**, non
    difesa.
 5. Comunicazione e commenti in **italiano**.
+6. **Dopo ogni modifica strutturale** (split di un blocco `<script>`,
+   spostamento di codice tra file, nuovo `<script src>`, cambio nell'ordine
+   di caricamento) **aggiorna, nella stessa sessione**, la mappa dei file in
+   "Orientarsi nel codice" e l'ordine dei `<script src>` descritto in
+   "In corso — split di index.html". Non rimandare a un edit successivo.
 
 ---
 
@@ -93,28 +98,47 @@ CONFIG = {
 
 ## Orientarsi nel codice
 
-`index.html` contiene due blocchi distinti, entrambi organizzati in sezioni
-commentate `/* ======== NOMESEZIONE ======== */`:
+Il JS è in split progressivo (vedi "In corso — split di index.html"). Stato
+attuale:
 
-- **Blocco CSS** — `<style>`, righe ~83–1743: BOOT SPLASH · ATTIVITÀ
-  RECENTE (admin) · MODULI COMPILABILI · NUMERO ROW (compact mobile-first) ·
-  CALENDARIO · BLOCCHI TIPIZZATI · EDITOR A BLOCCHI (Fase 2)
-- **Blocco JS** — `<script>`, righe ~1905–20319: CONFIG · BOOTSTRAP PAT ·
-  UTILITIES · CHIPS MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS ·
-  CONDIVISIONE LINK · EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API +
-  IN-MEMORY CACHES · CONTENT PARSING · STATE · INDEX BUILD · LOCKS · LOGIN ·
-  ROUTER · VIEW HELPERS · VIEW HOME · VIEW PROCEDURA · BLOCCHI TIPIZZATI
-  (schema a blocchi) · VIEW EDITOR · EDITOR A BLOCCHI (Fase 2) · AI IMPORT
-  WORKFLOW · VIEW NUMERI (rubrica) · VIEW MODULI COMPILABILI (+ STATO) ·
-  MODULI — GENERAZIONE OUTPUT / PERSISTENZA GITHUB / CREAZIONE NUOVO
-  MODULO · VIEW CALENDARIO · VIEW CESTINO + CESTINO OPERATIONS · GESTIONE
-  UTENTI (admin) · ATTIVITÀ RECENTE (admin) · CESTINO USER-PREFS (admin) ·
-  NAV TREE & EDIT MODE · MODULI — GESTIONE PAGINE · SEARCH · MODAL · INIT
+- **Blocco CSS** — `<style>` in `index.html`, righe ~83–1743: BOOT SPLASH ·
+  ATTIVITÀ RECENTE (admin) · MODULI COMPILABILI · NUMERO ROW (compact
+  mobile-first) · CALENDARIO · BLOCCHI TIPIZZATI · EDITOR A BLOCCHI (Fase 2)
+- **`js/costanti.js`**: `CATEGORIA_LABELS`, `SOTTO_LABELS`,
+  `HIDE_SUBCATEGORIES` — caricato per primo, subito dopo i CDN (usato da
+  più sezioni: VIEW HOME, EXPORT INDICE, CESTINO, NAV TREE, MODULI GESTIONE
+  PAGINE, SEARCH)
+- **`js/schede.js`**: VIEW PROCEDURA · BLOCCHI TIPIZZATI (schema a blocchi)
+  · VIEW EDITOR · EDITOR A BLOCCHI (Fase 2) · AI IMPORT WORKFLOW
+- **`js/rubrica.js`**: VIEW NUMERI (comprende anche HOME CONTATTI FISSATI
+  e RIORDINO RUBRICA, senza marcatore di commento proprio)
+- **`js/splash.js`**: animazione splash (emblema diapason), caricato per
+  ultimo, dopo il blocco principale
+- **Blocco JS principale** — `<script>` in `index.html`, righe ~1905–~6284
+  e ~6287–fine (spezzato in due dai `<script src>` di schede.js e
+  rubrica.js): CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS MULTI-SELECT ·
+  USER PREFERENCES · IMAGE HELPERS · CONDIVISIONE LINK · EXPORT INDICE
+  (NotebookLM) · CRYPTO · GITHUB API + IN-MEMORY CACHES · CONTENT PARSING ·
+  STATE · INDEX BUILD · LOCKS · LOGIN · ROUTER · VIEW HELPERS · VIEW HOME ·
+  [qui si innestano schede.js e rubrica.js] · VIEW MODULI COMPILABILI
+  (+ STATO) · MODULI — GENERAZIONE OUTPUT / PERSISTENZA GITHUB /
+  CREAZIONE NUOVO MODULO · VIEW CALENDARIO · VIEW CESTINO + CESTINO
+  OPERATIONS · GESTIONE UTENTI (admin) · ATTIVITÀ RECENTE (admin) ·
+  CESTINO USER-PREFS (admin) · NAV TREE & EDIT MODE · MODULI — GESTIONE
+  PAGINE · SEARCH · MODAL · INIT
 
-Alcuni nomi ricorrono in entrambi i blocchi (es. "BLOCCHI TIPIZZATI",
+Alcuni nomi ricorrono in blocco CSS e blocco JS (es. "BLOCCHI TIPIZZATI",
 "ATTIVITÀ RECENTE"): non sono duplicati, sono la stessa feature vista dal
 lato stile (CSS) e dal lato logica (JS) — quando cerchi per nome, controlla
-in quale blocco ti trovi.
+in quale blocco/file ti trovi.
+
+I file estratti (`js/schede.js`, `js/rubrica.js`, ecc.) non sono
+autosufficienti: chiamano e vengono chiamati da funzioni/costanti che
+vivono ancora nel blocco principale o in altri file estratti (es.
+`blockEditor` in schede.js è usato anche dall'editor scheda clinica;
+`renderContattoCard`/`_contattoMatchesQuery` in rubrica.js sono usati dal
+picker "Numeri correlati" in CHIPS MULTI-SELECT). Lo split è solo
+organizzativo, non introduce incapsulamento.
 
 Alcune funzionalità della tabella sotto (LetterAI loader, Sezione Reparto,
 home contatti fissati, riordino rubrica, `renderNumeroRow`, spinner/
@@ -210,8 +234,8 @@ Niente bundle inline, niente service worker, PWA offline non implementata.
 
 ## In corso — split di index.html
 
-Estrazione del blocco JS principale (righe ~1905–20319) in file separati
-sotto `js/`, caricati con `<script src>` classici.
+Estrazione del blocco JS principale (originariamente righe ~1905–20319) in
+file separati sotto `js/`, caricati con `<script src>` classici.
 
 **Decisione architetturale: NIENTE ES modules.** Il codice usa `onclick="fn()"`
 in centinaia di punti, che richiede le funzioni su `window`. Gli script classici
@@ -223,10 +247,25 @@ Conseguenze da rispettare:
 - L'ordine dei `<script src>` in `index.html` conta: le definizioni devono
   precedere gli usi al momento del caricamento.
 - Tagliare sempre per confine di funzione, mai per numero di riga.
+- Rilocalizzare i confini per marcatore di commento prima di ogni
+  estrazione, mai per numero di riga (si spostano a ogni edit).
+- Quando lo split taglia un pezzo dal *mezzo* del blocco `<script>`
+  principale (cioè non dalla coda), va chiuso e riaperto attorno al nuovo
+  `<script src>` — vedi trappola "`<script src>` inserito dentro un blocco
+  `<script>` ancora aperto".
 - `_stampaPagineA4` contiene un `<script>` annidato in un template literal
   (`<\/script>` con escape): non spezzare quella funzione.
-- Verificare con `node check.js` dopo ogni estrazione. Baseline: tag 8,
-  parsati 2, errori 0.
+- Verificare con `node check.js` dopo ogni estrazione, e comunque con la
+  scansione empirica della trappola sopra (i confini `<script>`, non solo
+  gli errori di sintassi).
 
-Ordine previsto: splash → schede → rubrica → moduli → calendario →
-admin → reparto → core (per ultimo).
+Stato:
+- ✅ `js/splash.js` — animazione splash
+- ✅ `js/costanti.js` — CATEGORIA_LABELS, SOTTO_LABELS, HIDE_SUBCATEGORIES
+- ✅ `js/schede.js` — VIEW PROCEDURA · BLOCCHI TIPIZZATI · VIEW EDITOR ·
+  EDITOR A BLOCCHI · AI IMPORT WORKFLOW
+- ✅ `js/rubrica.js` — VIEW NUMERI (+ home contatti fissati, riordino rubrica)
+- ⬜ moduli → calendario → admin → reparto → core (per ultimo)
+
+Baseline `check.js` attuale (dopo rubrica.js): `tag 12  parsati 3  saltati 9
+errori 0`.
