@@ -188,19 +188,31 @@ attuale:
   `SEGNALAZIONI_PATH`) e l'oggetto `Modals` (esposto su `window.Modals`).
   Taglio di testa del segmento C dopo l'estrazione di SEARCH: estratto
   integralmente, il segmento inline residuo riparte da INIT
+- **`js/init.js`**: INIT — EVENT LISTENERS GLOBALI e bootstrap. Contiene
+  `initEventListeners` (orchestratore degli init helper per dominio),
+  `init`, il listener top-level `document.addEventListener('DOMContentLoaded',
+  init)` e il safety-net `setTimeout` che forza `hideBootSplash` dopo 8s.
+  Taglio di CODA del blocco principale: dopo l'estrazione il segmento C
+  inline sparisce del tutto e resta la sola sequenza di `<script src>`.
+  Caricato dopo tutti gli altri file estratti e PRIMA di `js/splash.js`
+  (il DOMContentLoaded va registrato dopo che tutte le funzioni chiamate
+  esistono). Codice top-level ATTIVO (a differenza degli altri file)
 - **`js/splash.js`**: animazione splash (emblema diapason), caricato per
   ultimo, dopo il blocco principale
-- **Blocco JS principale** — `<script>` in `index.html`, ora spezzato in
-  TRE segmenti inline dai `<script src>` estratti: (A) righe ~1905–~5710
-  (CONFIG → VIEW HOME) · [reparto.js] · (B) ~5712–~5840 (VISTE LISTA
-  PROCEDURE) · [schede.js, rubrica.js, moduli.js, calendario.js, cestino.js,
-  admin.js, navtree.js, search.js, modal.js] · (C) da ~5850 a fine (solo
-  INIT; SEARCH e MODAL estratte in `js/search.js` e `js/modal.js`).
-  Contenuto del segmento A: CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS
-  MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS · CONDIVISIONE LINK ·
-  EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API + IN-MEMORY CACHES ·
-  CONTENT PARSING · STATE · INDEX BUILD · LOCKS · LOGIN · ROUTER · VIEW
-  HELPERS · VIEW HOME
+- **Blocco JS principale** — `<script>` in `index.html`, ora ridotto a DUE
+  segmenti inline "core" più tutti i `<script src>` estratti: (A) righe
+  ~1905–~5710 (CONFIG → VIEW HOME) · [reparto.js] · (B) ~5712–~5840 (VISTE
+  LISTA PROCEDURE) · [schede.js, rubrica.js, moduli.js, calendario.js,
+  cestino.js, admin.js, navtree.js, search.js, modal.js, init.js, splash.js].
+  Il vecchio segmento C (SEARCH · MODAL · INIT) è stato interamente estratto
+  in `js/search.js`, `js/modal.js`, `js/init.js`: non resta codice inline
+  dopo il segmento B. Contenuto del segmento A: CONFIG · BOOTSTRAP PAT ·
+  UTILITIES · CHIPS MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS ·
+  CONDIVISIONE LINK · EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API +
+  IN-MEMORY CACHES · CONTENT PARSING · STATE · INDEX BUILD · LOCKS · LOGIN ·
+  ROUTER · VIEW HELPERS · VIEW HOME. Segmento B: VISTE LISTA PROCEDURE.
+  Questi due segmenti "core" restano inline intenzionalmente (non erano
+  nello scope dello split)
 
 Alcuni nomi ricorrono in blocco CSS e blocco JS (es. "BLOCCHI TIPIZZATI",
 "ATTIVITÀ RECENTE"): non sono duplicati, sono la stessa feature vista dal
@@ -254,6 +266,7 @@ Cerca sempre per marcatore di commento o nome di funzione.
 | Admin: utenti / attività / cestino prefs | `js/admin.js`: `renderGestioneUtenti`, `renderAttivita`, `renderCestinoUtenti` |
 | Ricerca globale / pagina per tag | `js/search.js`: `renderSearchResults`, `renderTagPage` |
 | Modali generiche / segnalazioni | `js/modal.js`: `showModal`, `closeModal`, `openSegnalazioneModal` |
+| Event listeners globali / bootstrap | `js/init.js`: `initEventListeners`, `init`, `DOMContentLoaded` |
 | Generatore lettere | `letteraai-module.js` via `ensureLetterAI` / `_openLetterAI` |
 | Lettura/scrittura GitHub | oggetto `gh` |
 | Moduli: pagine | `inserisciPaginaModulo` / `rimuoviPaginaModulo` |
@@ -365,7 +378,14 @@ Stato:
   estratto integralmente, l'inline residuo riparte da MODAL)
 - ✅ `js/modal.js` — MODAL (taglio di testa del segmento C dopo SEARCH:
   `showModal`/`closeModal`/`Modals`; l'inline residuo riparte da INIT)
-- ⬜ core/init (per ultimo — contiene il `DOMContentLoaded` di bootstrap)
+- ✅ `js/init.js` — INIT (taglio di CODA del blocco principale: event
+  listeners globali, `init`, `DOMContentLoaded`, safety-net splash; il
+  segmento C inline sparisce del tutto)
 
-Baseline `check.js` attuale (dopo modal.js): `tag 21  parsati 4
-saltati 17  errori 0`.
+**Split completato per lo scope pianificato (SEARCH · MODAL · INIT).** Non
+resta codice inline dopo il segmento B: i due segmenti "core" A (CONFIG →
+VIEW HOME) e B (VISTE LISTA PROCEDURE) restano inline intenzionalmente. Un
+eventuale split ulteriore del core non è previsto.
+
+Baseline `check.js` attuale (dopo init.js): `tag 21  parsati 3
+saltati 18  errori 0`.
