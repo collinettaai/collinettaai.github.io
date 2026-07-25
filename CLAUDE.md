@@ -151,6 +151,23 @@ attuale:
 - **`js/admin.js`**: GESTIONE UTENTI · ATTIVITÀ RECENTE · CESTINO
   USER-PREFS (tre sezioni admin-only contigue). Export verso ROUTER:
   `renderGestioneUtenti`, `renderAttivita`, `renderCestinoUtenti`
+- **`js/navtree.js`**: NAV TREE & EDIT MODE — il blocco più grosso e più
+  eterogeneo. Contiene: (1) l'albero di navigazione/sidebar (`navState`,
+  `renderNavTree`, drill in/out, builder per procedure/clinica/numeri/
+  moduli/lettere, menu contestuali); (2) l'EDIT MODE con le operazioni di
+  rinomina/spostamento/eliminazione di schede e procedure
+  (`renameProcedura`, `_openRenameSchedaModal`, `moveProcedura`/
+  `_doMoveProcedura`, `_moveSchedaCartella`, `_updateSchedaSlugReferences`,
+  rename/move/delete sottocategoria e macro-categoria); (3) TUTTA l'editoria
+  della rubrica/numeri (`openContattoEditor`, `editContatto`,
+  `deleteContatto`, `setContactKind`, tag-edit, `saveNumeriForSource`/
+  `saveNumeriFile`, gruppi e contatti) — nonostante il nome "rubrica",
+  queste funzioni vivono qui, NON in `js/rubrica.js`; (4) helper generici
+  molto usati altrove, definiti qui: `isAdmin`, `escapeJs`, `slugifyLocal`,
+  `showProgressModal`, `checkRateLimitFor`. `renameModulo` (disabilitato)
+  è qui. Nessun codice top-level attivo. Export principali verso il ROUTER
+  e le altre viste: `renderNavTree`, `isAdmin`, `escapeJs` (usati da quasi
+  tutti i file estratti a runtime)
 - **`js/reparto.js`**: SEZIONE REPARTO (consulto AI su paziente ricoverato:
   carica cartella → anonimizza via regex di LetteraAI → prompt modificabile).
   Costanti `REPARTO_*` (incluso il template literal `REPARTO_SYSTEM_DEFAULT`)
@@ -166,7 +183,7 @@ attuale:
   TRE segmenti inline dai `<script src>` estratti: (A) righe ~1905–~5710
   (CONFIG → VIEW HOME) · [reparto.js] · (B) ~5712–~5840 (VISTE LISTA
   PROCEDURE) · [schede.js, rubrica.js, moduli.js, calendario.js, cestino.js,
-  admin.js] · (C) ~5847–fine (NAV TREE & EDIT MODE · SEARCH · MODAL · INIT).
+  admin.js, navtree.js] · (C) ~5848–fine (SEARCH · MODAL · INIT).
   Contenuto del segmento A: CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS
   MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS · CONDIVISIONE LINK ·
   EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API + IN-MEMORY CACHES ·
@@ -206,13 +223,16 @@ Cerca sempre per marcatore di commento o nome di funzione.
 | Vista/filtri rubrica | `renderNumeri(filter)` |
 | Ordine contatti in una UOC | `sortContattiForDisplay` |
 | Riordino manuale sezioni/contatti | `moveSezione` / `moveContatto` |
-| Editor contatto | `openContattoEditor` |
+| Editor contatto | `js/navtree.js`: `openContattoEditor` |
 | Preferiti (stella, popup, sezioni) | `openPinSezioniPopup`, `userPrefs` |
 | Contatti fissati in home | `renderHomeNumeriSection` |
 | Editor a blocchi (schede) | `blockEditor`, `_wireBlockEditorUndoRedo` |
 | Editor tabella | `_renderTableEditor` + `renderBloccoTable` |
-| Rinomina slug scheda | `_openRenameSchedaModal` + `_updateSchedaSlugReferences` |
-| Sposta scheda | `moveProcedura` → `_doMoveProcedura` |
+| Rinomina slug scheda | `js/navtree.js`: `_openRenameSchedaModal` + `_updateSchedaSlugReferences` |
+| Sposta scheda | `js/navtree.js`: `moveProcedura` → `_doMoveProcedura` |
+| Albero di navigazione / edit mode | `js/navtree.js`: `renderNavTree`, `navState`, `toggleEditMode` |
+| Editoria rubrica/numeri (contatti, gruppi, macro-cat) | `js/navtree.js`: `openContattoEditor`, `saveNumeriForSource`, `renameMacroCategoria` |
+| Permessi admin / escape JS / slug | `js/navtree.js`: `isAdmin`, `escapeJs`, `slugifyLocal` |
 | Navigazione, history, scroll-restore | `navigate`, `_onHistoryPop`, `shouldGuardBack`, `_onPopState`, `_scrollByPos` |
 | Gesti touch mobile + splash | handler `touchstart`, `hideBootSplash` |
 | Altezza topbar | `initTopbarMeasure` + CSS `--topbar-height` |
@@ -222,7 +242,6 @@ Cerca sempre per marcatore di commento o nome di funzione.
 | Admin: utenti / attività / cestino prefs | `js/admin.js`: `renderGestioneUtenti`, `renderAttivita`, `renderCestinoUtenti` |
 | Generatore lettere | `letteraai-module.js` via `ensureLetterAI` / `_openLetterAI` |
 | Lettura/scrittura GitHub | oggetto `gh` |
-| Permessi admin | `isAdmin()` |
 | Moduli: pagine | `inserisciPaginaModulo` / `rimuoviPaginaModulo` |
 | Moduli: eliminare | `confirmDeleteModulo` / `doDeleteModulo` |
 | Font box modulo (% altezza) | `_autoFitBoxFont`, `_renderModuloPaginaSuCanvas` |
@@ -325,7 +344,10 @@ Stato:
 - ✅ `js/reparto.js` — SEZIONE REPARTO (taglio in mezzo al blocco 1: ha
   spezzato il primo `<script>` inline in due segmenti A/B; CSS `.rep-*`
   lasciato in `index.html`)
-- ⬜ nav tree → search → modal → core/init (per ultimo)
+- ✅ `js/navtree.js` — NAV TREE & EDIT MODE (taglio di testa del blocco 2;
+  include anche l'editoria rubrica/numeri e gli helper `isAdmin`/`escapeJs`/
+  `slugifyLocal`)
+- ⬜ search → modal → core/init (per ultimo)
 
-Baseline `check.js` attuale (dopo reparto.js): `tag 18  parsati 4
-saltati 14  errori 0`.
+Baseline `check.js` attuale (dopo navtree.js): `tag 19  parsati 4
+saltati 15  errori 0`.
