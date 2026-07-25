@@ -182,14 +182,20 @@ attuale:
   Taglio di testa del blocco 3/segmento C: estratto integralmente, il
   segmento inline residuo riparte da MODAL. Legge lo stato condiviso
   (`state.index`, `state.searchFilter`)
+- **`js/modal.js`**: MODAL — modali generiche (`showModal`, `closeModal`),
+  overlay bloccante (`showBlockingOverlay`/`updateBlockingOverlay`/
+  `hideBlockingOverlay`), segnalazioni (`openSegnalazioneModal`,
+  `SEGNALAZIONI_PATH`) e l'oggetto `Modals` (esposto su `window.Modals`).
+  Taglio di testa del segmento C dopo l'estrazione di SEARCH: estratto
+  integralmente, il segmento inline residuo riparte da INIT
 - **`js/splash.js`**: animazione splash (emblema diapason), caricato per
   ultimo, dopo il blocco principale
 - **Blocco JS principale** — `<script>` in `index.html`, ora spezzato in
   TRE segmenti inline dai `<script src>` estratti: (A) righe ~1905–~5710
   (CONFIG → VIEW HOME) · [reparto.js] · (B) ~5712–~5840 (VISTE LISTA
   PROCEDURE) · [schede.js, rubrica.js, moduli.js, calendario.js, cestino.js,
-  admin.js, navtree.js, search.js] · (C) da ~5849 a fine (MODAL · INIT;
-  SEARCH è stata estratta in `js/search.js`).
+  admin.js, navtree.js, search.js, modal.js] · (C) da ~5850 a fine (solo
+  INIT; SEARCH e MODAL estratte in `js/search.js` e `js/modal.js`).
   Contenuto del segmento A: CONFIG · BOOTSTRAP PAT · UTILITIES · CHIPS
   MULTI-SELECT · USER PREFERENCES · IMAGE HELPERS · CONDIVISIONE LINK ·
   EXPORT INDICE (NotebookLM) · CRYPTO · GITHUB API + IN-MEMORY CACHES ·
@@ -247,12 +253,13 @@ Cerca sempre per marcatore di commento o nome di funzione.
 | Cestino contenuti (schede/procedure) | `js/cestino.js`: `renderCestino`, `confirmDelete`, `nuovaProcedura` |
 | Admin: utenti / attività / cestino prefs | `js/admin.js`: `renderGestioneUtenti`, `renderAttivita`, `renderCestinoUtenti` |
 | Ricerca globale / pagina per tag | `js/search.js`: `renderSearchResults`, `renderTagPage` |
+| Modali generiche / segnalazioni | `js/modal.js`: `showModal`, `closeModal`, `openSegnalazioneModal` |
 | Generatore lettere | `letteraai-module.js` via `ensureLetterAI` / `_openLetterAI` |
 | Lettura/scrittura GitHub | oggetto `gh` |
 | Moduli: pagine | `inserisciPaginaModulo` / `rimuoviPaginaModulo` |
 | Moduli: eliminare | `confirmDeleteModulo` / `doDeleteModulo` |
 | Font box modulo (% altezza) | `_autoFitBoxFont`, `_renderModuloPaginaSuCanvas` |
-| Overlay bloccante | `showBlockingOverlay` |
+| Overlay bloccante | `js/modal.js`: `showBlockingOverlay` |
 
 ---
 
@@ -356,7 +363,9 @@ Stato:
   `slugifyLocal`)
 - ✅ `js/search.js` — SEARCH (taglio di testa del segmento C/blocco 3:
   estratto integralmente, l'inline residuo riparte da MODAL)
-- ⬜ modal → core/init (per ultimo)
+- ✅ `js/modal.js` — MODAL (taglio di testa del segmento C dopo SEARCH:
+  `showModal`/`closeModal`/`Modals`; l'inline residuo riparte da INIT)
+- ⬜ core/init (per ultimo — contiene il `DOMContentLoaded` di bootstrap)
 
-Baseline `check.js` attuale (dopo search.js): `tag 20  parsati 4
-saltati 16  errori 0`.
+Baseline `check.js` attuale (dopo modal.js): `tag 21  parsati 4
+saltati 17  errori 0`.
