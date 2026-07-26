@@ -93,11 +93,16 @@ function puoModificare(key) {
 }
 
 // Guardia da mettere in testa alle azioni di modifica: se il permesso manca
-// avvisa e restituisce true (il chiamante fa `return`).
+// avvisa e restituisce true (il chiamante fa `return`). L'avviso è la modale di
+// js/richieste.js, che offre anche l'invio della richiesta agli admin.
 function bloccaSeNonModifica(key) {
   if (puoModificare(key)) return false;
-  const sez = PERMESSI_SEZIONI.find(s => s.key === key);
-  toast(`Non hai i permessi per modificare ${sez ? sez.label : key}.`, 'warning');
+  if (typeof openAzioneBloccataModal === 'function') {
+    openAzioneBloccataModal(key);
+  } else {
+    const sez = PERMESSI_SEZIONI.find(s => s.key === key);
+    toast(`Non hai i permessi per modificare ${sez ? sez.label : key}.`, 'warning');
+  }
   return true;
 }
 

@@ -138,7 +138,7 @@ function _calRefreshControls() {
     </button>
     <div class="cal-title">${monthLabel}</div>
     <button class="cal-nav-btn" onclick="calToday()" title="Oggi" aria-label="Oggi" style="width:auto;padding:0 10px;font-size:12px;font-family:var(--mono);">Oggi</button>
-    <button class="cal-nav-btn" onclick="openCalImportModal()" title="Importa guardie/coguardie da testo" aria-label="Importa" style="width:auto;padding:0 10px;font-size:12px;font-family:var(--mono);">Importa</button>
+    ${puoModificare('calendario') ? `<button class="cal-nav-btn" onclick="openCalImportModal()" title="Importa guardie/coguardie da testo" aria-label="Importa" style="width:auto;padding:0 10px;font-size:12px;font-family:var(--mono);">Importa</button>` : ''}
   `;
 }
 
@@ -571,6 +571,7 @@ async function saveCalEvent(evt, isUpdate) {
 }
 
 async function deleteCalEvent(eventId) {
+  if (bloccaSeNonModifica('calendario')) return;
   const cal = state.index.calendar || { eventi: [], _sha: null };
   const evt = (cal.eventi || []).find(e => e.id === eventId);
   if (!evt) return;
@@ -841,6 +842,7 @@ function parseGuardieText(text, defaultYear, defaultMonth /* 0-11 */) {
 
 // ==== Modal import guardie ====
 function openCalImportModal() {
+  if (bloccaSeNonModifica('calendario')) return;
   const c = state.calendarState;
   showModal({
     title: 'Importa guardie / coguardie',

@@ -478,9 +478,9 @@ function renderProcedura(slug) {
       </div>
       <div class="page-actions">
         <button class="btn ghost" onclick="shareLink(buildShareUrl('procedura', {slug:'${escapeHtml(slug)}'}), 'CollinettaAI · ${escapeHtml(proc.titolo || slug).replace(/'/g, '\\\'')}')" title="Condividi link a questa scheda"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Condividi</button>
-        <button class="btn edit-only" onclick="navigate('procedura-edit', {slug:'${escapeHtml(slug)}'}, {replace:true})">Modifica</button>
+        ${puoModificare('procedure') ? `<button class="btn edit-only" onclick="navigate('procedura-edit', {slug:'${escapeHtml(slug)}'}, {replace:true})">Modifica</button>` : ''}
         <button class="btn ghost edit-only" onclick="showHistoryModal('${escapeHtml(slug)}')">Cronologia</button>
-        <button class="btn ghost edit-only" onclick="confirmDelete('procedura', '${escapeHtml(slug)}')">Elimina</button>
+        ${puoModificare('procedure') ? `<button class="btn ghost edit-only" onclick="confirmDelete('procedura', '${escapeHtml(slug)}')">Elimina</button>` : ''}
       </div>
     </div>
     <article class="procedura-body">
@@ -525,7 +525,7 @@ function renderClinicaList(subFilter) {
       <h1 class="page-title">${escapeHtml(pageTitle)} ${subFilter ? renderPinButton('clinica-sub', subFilter) : ''}</h1>
       <div style="margin-top:8px;font-size:13px;color:var(--ink-muted);">${subtitle}</div>
       <div class="page-actions">
-        <button class="btn edit-only" onclick="nuovaSchedaClinica(${subFilter && subFilter !== '_senza' ? `{sottocategoria:'${escapeHtml(subFilter)}'}` : ''})">+ Nuova scheda clinica</button>
+        ${puoModificare('clinica') ? `<button class="btn edit-only" onclick="nuovaSchedaClinica(${subFilter && subFilter !== '_senza' ? `{sottocategoria:'${escapeHtml(subFilter)}'}` : ''})">+ Nuova scheda clinica</button>` : ''}
       </div>
     </div>
     ${items.length === 0 ? '<p style="color:var(--ink-muted);">Nessuna scheda clinica ancora caricata.</p>' :
@@ -574,7 +574,7 @@ function renderSchedaClinica(slug) {
       </div>
       <div class="page-actions">
         <button class="btn ghost" onclick="shareLink(buildShareUrl('clinica-scheda', {slug:'${escapeHtml(slug)}'}), 'CollinettaAI · ${escapeHtml(scheda.titolo || slug).replace(/'/g, '\\\'')}')" title="Condividi link a questa scheda"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Condividi</button>
-        <button class="btn edit-only" onclick="navigate('clinica-edit', {slug:'${escapeHtml(slug)}'}, {replace:true})">Modifica</button>
+        ${puoModificare('clinica') ? `<button class="btn edit-only" onclick="navigate('clinica-edit', {slug:'${escapeHtml(slug)}'}, {replace:true})">Modifica</button>` : ''}
         <button class="btn ghost edit-only" onclick="showClinicaHistoryModal('${escapeHtml(slug)}')">Cronologia</button>
       </div>
     </div>

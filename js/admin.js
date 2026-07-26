@@ -101,6 +101,7 @@ function renderGestioneUtentiView() {
       <div class="page-actions" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn" id="btn-add-user">+ Aggiungi utente</button>
         <button class="btn ghost" onclick="modificaPermessiRuoli()">Permessi per ruolo</button>
+        <button class="btn ghost" onclick="navigate('richieste')">Richieste di modifica</button>
         <button class="btn ghost" onclick="navigate('cestino-utenti')">Cestino utenti</button>
         <button class="btn ghost" onclick="navigate('attivita')">Attività recente</button>
         <button class="btn ghost" onclick="exportContentIndex()">Esporta contenuto (NotebookLM)</button>

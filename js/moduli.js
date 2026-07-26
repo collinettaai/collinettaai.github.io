@@ -545,7 +545,7 @@ function renderModuliList() {
       <div class="page-eyebrow">${buildBreadcrumb([{label:'Home', route:'home'}])}</div>
       <h1 class="page-title">Moduli</h1>
       <div class="page-actions" style="margin-top:16px;">
-        <button class="btn primary" onclick="apriNuovoModuloDialog()" style="background:var(--ink);color:var(--bg-paper);border-color:var(--ink);">+ Nuovo modulo</button>
+        ${puoModificare('moduli') ? `<button class="btn primary" onclick="apriNuovoModuloDialog()" style="background:var(--ink);color:var(--bg-paper);border-color:var(--ink);">+ Nuovo modulo</button>` : ''}
       </div>
     </div>
     ${bodyHtml}`;
@@ -555,6 +555,7 @@ function renderModuliList() {
 // Cambiare lo slug comporta lo spostamento dell'intera cartella content/moduli/<slug>/
 // (boxes.yml + PNG delle pagine) e l'aggiornamento di content/moduli/index.yml.
 async function editModuloMeta(slug) {
+  if (bloccaSeNonModifica('moduli')) return;
   if (!state.session || !state.session.tokenAuth) {
     return toast('Login richiesto per modificare moduli', 'error');
   }
@@ -951,9 +952,10 @@ function renderModuloCompilatore(slug, det) {
   area.innerHTML = `
     <div class="mod-toolbar" id="mod-toolbar">
       <button class="btn ghost" onclick="renderModuloViewer('${escapeJs(slug)}', state.moduliCache['${escapeJs(slug)}'])" title="Torna alla vista pagine">◀ Indietro</button>
+      ${(editMode || puoModificare('moduli')) ? `
       <button class="btn ${editMode ? 'primary' : 'ghost'}" onclick="toggleModuloEditMode('${escapeJs(slug)}')">
         ${editMode ? '✓ Esci modalità modifica' : '✎ Modifica box'}
-      </button>
+      </button>` : ''}
       ${editMode ? `
         <button class="btn ghost" onclick="addModuloBox('${escapeJs(slug)}')">+ Aggiungi box</button>
         <button class="btn ${det.showGrid ? 'primary' : 'ghost'}" onclick="toggleModuloGrid('${escapeJs(slug)}')" title="Mostra/nascondi griglia di allineamento (con snap)"${det.showGrid ? ' style="background:#185FA5;border-color:#185FA5;"' : ''}>▦ Griglia</button>
@@ -999,6 +1001,8 @@ function renderModuloCompilatore(slug, det) {
 function toggleModuloEditMode(slug) {
   const c = state.moduliCache[slug];
   if (!c) return;
+  // Entrare in modalità modifica richiede il permesso; uscirne no
+  if (!c.editMode && bloccaSeNonModifica('moduli')) return;
   // Se sto USCENDO dalla modalità modifica con modifiche non salvate, chiedi conferma
   if (c.editMode && _boxesAreDirty(slug)) {
     const ok = confirm('Ci sono modifiche non salvate ai box.\n\nUscendo dalla modalità modifica le modifiche restano in questa sessione ma non sul repo.\n\nVuoi uscire comunque? (Per salvare, usa "Salva")');
@@ -2383,6 +2387,7 @@ async function shareModulo(slug) {
 // Salva il boxes.yml corrente sul repo dati. Aggiorna anche moduli/index.yml col nuovo
 // `aggiornato` (così altri client invalidano la cache e fetchano la nuova versione).
 async function salvaModuloBoxes(slug) {
+  if (bloccaSeNonModifica('moduli')) return;
   const c = state.moduliCache[slug];
   if (!c) return toast('Modulo non in cache', 'error');
   if (!_boxesAreDirty(slug)) {
@@ -3047,6 +3052,7 @@ async function _salvaBoxesRimappati(slug, boxesData) {
 
 // INSERISCI una o più pagine alla posizione `pos` (1-based; pos = N+1 per aggiungere in fondo).
 async function inserisciPaginaModulo(slug) {
+  if (bloccaSeNonModifica('moduli')) return;
   const total = _moduloPageCount(slug);
   const input = document.createElement('input');
   input.type = 'file';
@@ -3131,6 +3137,7 @@ async function _doInserisciPagina(slug, file, pos, total) {
 
 // RIMUOVI la pagina `pageNum`.
 function rimuoviPaginaModulo(slug, pageNum) {
+  if (bloccaSeNonModifica('moduli')) return;
   const total = _moduloPageCount(slug);
   if (total <= 1) return toast('Un modulo deve avere almeno una pagina', 'warning');
   showModal({

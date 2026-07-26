@@ -1046,6 +1046,7 @@ async function _updateSchedaSlugReferences(oldSlug, newSlug) {
 }
 
 async function renameProcedura(slug) {
+  if (bloccaSeNonModifica('procedure')) return;
   const proc = state.index.procedure.find(p => p.slug === slug);
   if (!proc) return;
   _openRenameSchedaModal({
@@ -1131,6 +1132,7 @@ function _openRenameSchedaModal(opts) {
 }
 
 async function moveProcedura(slug) {
+  if (bloccaSeNonModifica('procedure')) return;
   const proc = state.index.procedure.find(p => p.slug === slug);
   if (!proc) return;
   const macroOrder = ['bedside','richieste','farmacologiche','emergenze','gestione'];
@@ -1612,6 +1614,7 @@ async function deleteContatto(contattoId) {
 // Imposta o rimuove il tag (kind) di un contatto: guardia/reparto/utile, 'none' per
 // "senza tag esplicito" (no auto-detect), o null per ripristinare l'auto-detect.
 async function setContactKind(contattoId, newKind) {
+  if (bloccaSeNonModifica('numeri')) return;
   // Se siamo in edit mode, mettiamo la modifica in pending (da salvare con "Salva modifiche")
   if (navState && navState.editMode) {
     return stageTagEdit(contattoId, newKind);
@@ -1942,6 +1945,7 @@ async function createSottocategoria(macro) {
   nuovaProcedura({ categoria: macro, sottocategoria: name });
 }
 async function renameClinica(slug) {
+  if (bloccaSeNonModifica('clinica')) return;
   const scheda = (state.index.clinica || []).find(c => c.slug === slug);
   if (!scheda) return toast('Scheda clinica non trovata', 'error');
   _openRenameSchedaModal({

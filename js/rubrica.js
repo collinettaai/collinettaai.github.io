@@ -1988,6 +1988,7 @@ function openUocWithSede(gid, sedeKey) {
 // Aggiorna i campi `priority` di tutte le sezioni del gruppo per riflettere il nuovo ordine
 // (1, 2, 3, ... — sequenziale e rinumerato a ogni swap).
 async function moveSezione(gid, sezNome, direction) {
+  if (bloccaSeNonModifica('numeri')) return;
   if (!state.session || !state.session.username) {
     return toast('Login richiesto per modificare', 'warning');
   }
@@ -2035,6 +2036,7 @@ async function moveSezione(gid, sezNome, direction) {
 // (guardia/reparto/utili) ha la precedenza, quindi lo spostamento manuale opera
 // dentro la stessa categoria; non si può scavalcare una categoria diversa.
 async function moveContatto(gid, cid, direction) {
+  if (bloccaSeNonModifica('numeri')) return;
   if (!state.session || !state.session.username) {
     return toast('Login richiesto per modificare', 'warning');
   }
