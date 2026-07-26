@@ -123,6 +123,18 @@ attuale:
 - **`js/costanti.js`**: `CATEGORIA_LABELS`, `SOTTO_LABELS`,
   `HIDE_SUBCATEGORIES` — caricato per primo, subito dopo i CDN (usato da
   più sezioni: VIEW HOME, EXPORT INDICE, CESTINO, NAV TREE, SEARCH)
+- **`js/permessi.js`**: PERMESSI per sezione (`view`/`edit`) — catalogo
+  `PERMESSI_SEZIONI`, risoluzione (admin → override utente → default del
+  ruolo → `PERMESSO_DEFAULT = 'edit'`), interrogazione a runtime
+  (`puoVedere`, `puoModificare`, `bloccaSeNonModifica`), guardia del router
+  (`permessoRouteNegato`), refresh della sessione (`refreshPermessiSessione`)
+  e le due modali di gestione (`modificaPermessiUtente` per il singolo
+  utente, `modificaPermessiRuoli` per ruolo). Caricato subito dopo
+  `js/costanti.js`: solo dichiarazioni, nessun codice top-level attivo.
+  Persistenza nel file auth `data/encrypted-tokens.json` (in chiaro accanto
+  a `is_admin`/`ruolo`): `utenti[<user>].permessi` e `permessi_ruoli[<ruolo>]`.
+  CSS `.perm-*` in `index.html` (accanto a `.ut-*`). Per aggiungere una
+  sezione basta una riga in `PERMESSI_SEZIONI`
 - **`js/schede.js`**: VIEW PROCEDURA · BLOCCHI TIPIZZATI (schema a blocchi)
   · VIEW EDITOR · EDITOR A BLOCCHI (Fase 2) · AI IMPORT WORKFLOW
 - **`js/rubrica.js`**: VIEW NUMERI (comprende anche HOME CONTATTI FISSATI
@@ -200,8 +212,9 @@ attuale:
 - **`js/splash.js`**: animazione splash (emblema diapason), caricato per
   ultimo, dopo il blocco principale
 - **Blocco JS principale** — `<script>` in `index.html`, ora ridotto a DUE
-  segmenti inline "core" più tutti i `<script src>` estratti: (A) righe
-  ~1905–~5710 (CONFIG → VIEW HOME) · [reparto.js] · (B) ~5712–~5840 (VISTE
+  segmenti inline "core" più tutti i `<script src>` estratti, nell'ordine:
+  [costanti.js, permessi.js] · (A) righe
+  ~1920–~5730 (CONFIG → VIEW HOME) · [reparto.js] · (B) (VISTE
   LISTA PROCEDURE) · [schede.js, rubrica.js, moduli.js, calendario.js,
   cestino.js, admin.js, navtree.js, search.js, modal.js, init.js, splash.js].
   Il vecchio segmento C (SEARCH · MODAL · INIT) è stato interamente estratto
@@ -264,6 +277,7 @@ Cerca sempre per marcatore di commento o nome di funzione.
 | Calendario (griglia/eventi/import) | `js/calendario.js`: `renderCalendario`, `openCalEventModal`, `parseGuardieText` + CSS `.cal-*` (in `index.html`) |
 | Cestino contenuti (schede/procedure) | `js/cestino.js`: `renderCestino`, `confirmDelete`, `nuovaProcedura` |
 | Admin: utenti / attività / cestino prefs | `js/admin.js`: `renderGestioneUtenti`, `renderAttivita`, `renderCestinoUtenti` |
+| Permessi (sezioni, ruoli, modali) | `js/permessi.js`: `PERMESSI_SEZIONI`, `modificaPermessiUtente`, `modificaPermessiRuoli`, `puoModificare` + CSS `.perm-*` (in `index.html`) |
 | Ricerca globale / pagina per tag | `js/search.js`: `renderSearchResults`, `renderTagPage` |
 | Modali generiche / segnalazioni | `js/modal.js`: `showModal`, `closeModal`, `openSegnalazioneModal` |
 | Event listeners globali / bootstrap | `js/init.js`: `initEventListeners`, `init`, `DOMContentLoaded` |
@@ -387,5 +401,32 @@ resta codice inline dopo il segmento B: i due segmenti "core" A (CONFIG →
 VIEW HOME) e B (VISTE LISTA PROCEDURE) restano inline intenzionalmente. Un
 eventuale split ulteriore del core non è previsto.
 
-Baseline `check.js` attuale (dopo init.js): `tag 21  parsati 3
-saltati 18  errori 0`.
+Baseline `check.js` attuale (dopo `js/permessi.js`): `tag 22  parsati 3
+saltati 19  errori 0`.
+
+---
+
+## Permessi (visualizza / modifica per sezione)
+
+Modello in `js/permessi.js` (vedi "Orientarsi nel codice"). Punti di
+applicazione già cablati — se aggiungi una sezione o un'azione di modifica,
+aggiungi qui la guardia corrispondente:
+
+- **Router** (`navigate` in `index.html`): `permessoRouteNegato(route)`
+  blocca le rotte di sezioni a `none` e le rotte `*-edit` senza `edit`
+- **Nav tree** (`getRootNavNodes` in `js/navtree.js`): filtra le voci root
+  con `puoVedere(id)` — gli id dei nodi coincidono con le chiavi di sezione
+- **Azioni di modifica** con `bloccaSeNonModifica(<sezione>)`:
+  `nuovaProcedura`/`confirmDelete` (cestino.js), `nuovaSchedaClinica`
+  (schede.js), `openContattoEditor` (navtree.js), `openCalEventModal`
+  (calendario.js), `apriNuovoModuloDialog`/`confirmDeleteModulo` (moduli.js)
+- **Sessione**: i permessi risolti stanno in `state.session.permessi`,
+  calcolati al login (`attemptLogin`) e riallineati all'avvio su sessione
+  ripristinata (`refreshPermessiSessione`, chiamata da `enterApp`)
+
+Non ancora coperti: le operazioni admin-only restano gated da `isAdmin()`
+(struttura categorie, gruppi rubrica, eliminazione contatti); dentro
+`letteraai-module.js` la modifica resta legata a `canEdit` = `isAdmin`, quindi
+per LetteraAI il livello `edit` incide solo su nav e rotte. I risultati di
+ricerca possono linkare sezioni non visibili: la guardia del router le
+intercetta con "Accesso negato".

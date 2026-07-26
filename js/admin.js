@@ -100,6 +100,7 @@ function renderGestioneUtentiView() {
       <h1 class="page-title">Gestione <em>utenti</em></h1>
       <div class="page-actions" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn" id="btn-add-user">+ Aggiungi utente</button>
+        <button class="btn ghost" onclick="modificaPermessiRuoli()">Permessi per ruolo</button>
         <button class="btn ghost" onclick="navigate('cestino-utenti')">Cestino utenti</button>
         <button class="btn ghost" onclick="navigate('attivita')">Attività recente</button>
         <button class="btn ghost" onclick="exportContentIndex()">Esporta contenuto (NotebookLM)</button>
@@ -214,6 +215,8 @@ function renderUtentiCards(filtered, countAll, q) {
       const isAdminUser = !!entry.is_admin;
       const ruolo = entry.ruolo || '—';
       const rLabel = ruoloLabel(ruolo);
+      // Badge "permessi personalizzati": l'utente ha override rispetto al suo ruolo
+      const haPermessiCustom = !isAdminUser && entry.permessi && Object.keys(entry.permessi).length > 0;
       return `
         <div class="procedure-card" style="cursor:default;">
           <div class="procedure-card-title" style="display:flex;align-items:center;gap:10px;">
@@ -221,9 +224,10 @@ function renderUtentiCards(filtered, countAll, q) {
             <span style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:2px;${isAdminUser ? 'background:var(--accent);color:white;' : 'background:var(--bg-sink);color:var(--ink-muted);border:1px solid var(--rule);'}">${isAdminUser ? '★ Admin' : 'Utente'}</span>
           </div>
           <div class="procedure-card-tags" style="font-size:13px;color:var(--ink-muted);margin:6px 0;">
-            Ruolo: <strong>${escapeHtml(rLabel)}</strong>${entry.updated_at ? ' · Aggiornato ' + timeAgo(entry.updated_at) : ''}
+            Ruolo: <strong>${escapeHtml(rLabel)}</strong>${haPermessiCustom ? ' · <em>permessi personalizzati</em>' : ''}${entry.updated_at ? ' · Aggiornato ' + timeAgo(entry.updated_at) : ''}
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+            <button class="btn small ghost" onclick="modificaPermessiUtente('${escapeJs(uname)}')">Modifica permessi</button>
             <button class="btn small ghost" onclick="cambiaPassphrase('${escapeJs(uname)}')">Cambia passphrase</button>
             ${uname === state.session.username ? '' : `<button class="btn small ghost" onclick="cambiaStatoAdmin('${escapeJs(uname)}')">${isAdminUser ? 'Rimuovi admin' : 'Rendi admin'}</button>`}
             ${uname === state.session.username ? '' : `<button class="btn small ghost danger" onclick="rimuoviUtente('${escapeJs(uname)}')">Rimuovi</button>`}
@@ -386,6 +390,7 @@ function cambiaPassphrase(username) {
           const newEntry = await encryptPayload(payload, newPass1);
           newEntry.is_admin = entry.is_admin;
           if (entry.ruolo) newEntry.ruolo = entry.ruolo;
+          if (entry.permessi) newEntry.permessi = entry.permessi;
 
           data.utenti[username] = newEntry;
           await gh_auth.putTokensFile(data, sha, `Cambia passphrase di ${username} (by ${state.session.username})`);
@@ -453,6 +458,7 @@ function cambiaStatoAdmin(username) {
           const newEntry = await encryptPayload(payload, pass);
           newEntry.is_admin = !giaAdmin;
           if (ent.ruolo) newEntry.ruolo = ent.ruolo;
+          if (ent.permessi) newEntry.permessi = ent.permessi;
           data.utenti[username] = newEntry;
           await gh_auth.putTokensFile(data, sha, `${giaAdmin ? 'Rimuovi' : 'Assegna'} admin a ${username} (by ${state.session.username})`);
           closeModal();

@@ -32,6 +32,7 @@ function renderCestino() {
 
 /* ============================ CESTINO OPERATIONS ============================ */
 function nuovaProcedura(preset = {}) {
+  if (bloccaSeNonModifica('procedure')) return;
   const existingSlugs = new Set(state.index.procedure.map(p => p.slug));
   const catOptions = Object.entries(CATEGORIA_LABELS).slice(0, 6).map(([k, v]) =>
     `<option value="${escapeHtml(k)}" ${preset.categoria === k ? 'selected' : ''}>${escapeHtml(v)}</option>`
@@ -140,6 +141,7 @@ function nuovaProcedura(preset = {}) {
 }
 
 function confirmDelete(type, slug) {
+  if (bloccaSeNonModifica(type === 'clinica' ? 'clinica' : 'procedure')) return;
   const entity = state.index[type === 'procedura' ? 'procedure' : type].find(x => x.slug === slug);
   if (!entity) return;
   showModal({

@@ -103,6 +103,8 @@ function toggleEditMode(force) {
 }
 
 function getRootNavNodes() {
+  // Le sezioni con permesso 'none' spariscono dall'albero (il router le blocca comunque)
+  const visibile = (key) => (typeof puoVedere !== 'function') || puoVedere(key);
   return [
     { id: 'home', label: 'Home', kind: 'top', slug: 'home', navTarget: { route: 'home', params: {} } },
     { id: 'procedure', label: 'Procedure', count: state.index.procedure.length, kind: 'top', slug: 'procedure', navTarget: { route: 'procedure', params: {} }, children: () => buildProcedureChildren() },
@@ -112,7 +114,7 @@ function getRootNavNodes() {
     { id: 'calendario', label: 'Calendario', count: ((state.index.calendar && state.index.calendar.eventi) || []).length, kind: 'top', slug: 'calendario', navTarget: { route: 'calendario', params: {} } },
     { id: 'reparto', label: 'Reparto', kind: 'top', slug: 'reparto', navTarget: { route: 'reparto', params: {} } },
     { id: 'lettere', label: 'LetteraAI', count: ((state.index.lettere && state.index.lettere.casi) || []).length, kind: 'top', slug: 'lettere', navTarget: { route: 'lettere', params: {} }, children: () => buildLettereChildren() },
-  ];
+  ].filter(n => n.id === 'home' || visibile(n.id));
 }
 
 // Trova il nodo corrispondente a un id esplorando la gerarchia partendo dalle root
@@ -1326,6 +1328,7 @@ function updateCESottosezione() {
 
 // Open the contact editor modal. mode = 'new' | 'edit'
 function openContattoEditor({ mode, gruppoId, contatto }) {
+  if (bloccaSeNonModifica('numeri')) return;
   const isNew = mode === 'new';
   const c = contatto || {};
   const numeriStr = (c.numeri || []).join(', ');

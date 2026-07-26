@@ -389,6 +389,7 @@ document.addEventListener('click', (e) => {
 
 // ==== Modal aggiunta/modifica evento ====
 function openCalEventModal(dateStr, eventId) {
+  if (bloccaSeNonModifica('calendario')) return;
   const existingEvent = eventId
     ? ((state.index.calendar?.eventi || []).find(e => e.id === eventId) || null)
     : null;

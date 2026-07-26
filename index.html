@@ -74,6 +74,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
 <script src="js/costanti.js"></script>
+<script src="js/permessi.js"></script>
 <!-- Le seguenti librerie sono caricate lazy on-demand via _ensureLib():
      - jsPDF (~360 KB): solo al click "Scarica PDF" su moduli compilati
      - PDF.js (~370 KB): solo all'apertura del wizard "Nuovo modulo" da PDF
@@ -204,6 +205,24 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);
 .ut-chip.active:hover{background:var(--ink-soft);border-color:var(--ink-soft)}
 .ut-chip-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:1px 5px;font-family:var(--mono);font-size:10px;font-weight:600;background:var(--bg-sink);color:var(--ink-muted);border-radius:10px}
 .ut-chip.active .ut-chip-count{background:rgba(255,255,255,.2);color:var(--bg-paper)}
+
+/* ============================ PERMESSI (modali gestione utenti) ============================ */
+.perm-grid{border:1px solid var(--rule);border-radius:2px;overflow:hidden}
+.perm-grid-off{opacity:.5}
+.perm-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--rule-soft)}
+.perm-row:last-child{border-bottom:none}
+.perm-row:nth-child(odd){background:var(--bg-sink)}
+.perm-sez{flex:1;min-width:0;font-size:14px;color:var(--ink)}
+.perm-hint{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--ink-muted);margin-top:2px}
+/* reset del text-transform:uppercase globale su label */
+.perm-cell{display:flex;align-items:center;gap:6px;margin:0;font-family:var(--sans);font-size:12px;letter-spacing:0;text-transform:none;color:var(--ink-soft);cursor:pointer;white-space:nowrap}
+.perm-cell input{width:16px;height:16px;margin:0;flex:none}
+.perm-inherit{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 12px;background:var(--bg-sink);border:1px solid var(--rule);border-radius:2px;font-family:var(--sans);font-size:13px;letter-spacing:0;text-transform:none;color:var(--ink);cursor:pointer}
+.perm-inherit input{width:16px;height:16px;margin:0;flex:none}
+@media (max-width:520px){
+  .perm-row{flex-wrap:wrap}
+  .perm-sez{flex:1 1 100%}
+}
 
 /* ============================ ATTIVITA RECENTE (admin) ============================ */
 .at-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:16px 0 24px}
@@ -4783,6 +4802,8 @@ async function attemptLogin(username, passphrase) {
       tokenData: tokenData,
       tokenAuth: tokenAuth,          // null per utenti normali
       isAdmin: isAdmin && !!tokenAuth,  // solo se token_auth presente davvero
+      // Permessi risolti al login: override utente > default del ruolo > 'edit'
+      permessi: permessiPerSessione(entry, state.tokensFile),
       ruolo: payload.ruolo || entry.ruolo || null,
       nome: payload.nome || null,
       cognome: payload.cognome || null
@@ -4835,6 +4856,10 @@ async function enterApp() {
   if (isAdminNow) {
     document.getElementById('rate-limit-indicator').classList.remove('hidden');
   }
+  // Sessione ripristinata (non appena loggata): riallinea i permessi al file auth,
+  // così le modifiche dell'admin valgono dal riavvio dell'app e non dal prossimo login.
+  // Non blocca il boot: aggiorna nav e sessione quando la fetch ritorna.
+  if (!state.tokensFile) refreshPermessiSessione();
   // Applica body class per personalizzazione UI in base al ruolo
   if (state.session.ruolo) {
     document.body.dataset.ruolo = state.session.ruolo;
@@ -5391,6 +5416,15 @@ function navigate(route, params = {}, navOpts = {}) {
   const _mc = document.getElementById('main-content');
   if (_restoreY > 0 && _mc) _mc.style.visibility = 'hidden';
   const _reveal = () => { if (_mc) _mc.style.visibility = ''; };
+
+  // Guardia permessi: sezione nascosta o rotta di modifica senza permesso 'edit'
+  const _permNegato = (typeof permessoRouteNegato === 'function') ? permessoRouteNegato(route) : null;
+  if (_permNegato) {
+    renderError('Accesso negato', _permNegato);
+    _reveal();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    return;
+  }
 
   switch (route) {
     case 'home': renderHome(); break;

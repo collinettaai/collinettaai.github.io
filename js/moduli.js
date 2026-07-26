@@ -2517,6 +2517,7 @@ function _slugifyTitolo(s) {
 
 // Apre il dialog wizard "Nuovo modulo"
 function apriNuovoModuloDialog() {
+  if (bloccaSeNonModifica('moduli')) return;
   if (!state.session || !state.session.tokenAuth) {
     return toast('Login richiesto per creare moduli', 'error');
   }
@@ -2896,6 +2897,7 @@ async function _confermaNuovoModulo() {
 
 /* ============================ MODULI — ELIMINAZIONE (NAV TREE) ============================ */
 async function confirmDeleteModulo(slug) {
+  if (bloccaSeNonModifica('moduli')) return;
   const m = (state.index.moduli || []).find(x => x.slug === slug);
   const titolo = m ? (m.titolo || slug) : slug;
   showModal({

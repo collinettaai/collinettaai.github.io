@@ -873,6 +873,7 @@ async function saveSchedaClinica() {
 }
 
 function nuovaSchedaClinica(preset = {}) {
+  if (bloccaSeNonModifica('clinica')) return;
   const existingSlugs = new Set((state.index.clinica || []).map(c => c.slug));
   // Sottocategorie predefinite rimosse: i suggerimenti derivano solo dalle schede esistenti.
   const subOpts = [];
