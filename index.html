@@ -2641,13 +2641,14 @@ const userPrefs = {
     const content = `# Preferenze home personali per ${state.session.username}\n# Gestite dall'app, non modificare a mano\n\n` +
       jsyaml.dump(data, { lineWidth: 120, noRefs: true, sortKeys: false });
     try {
-      const res = await gh.putFile(path, content, state.userPrefs._sha, `chore: preferenze home di ${state.session.username}`);
+      // silent: preferenze (preferiti/fissati) salvate in background con debounce, niente overlay.
+      const res = await gh.putFile(path, content, state.userPrefs._sha, `chore: preferenze home di ${state.session.username}`, false, { silent: true });
       state.userPrefs._sha = res.content.sha;
     } catch (e) {
       if (e.code === 'CONFLICT') {
         // Reload and retry once
         await userPrefs.load();
-        const res2 = await gh.putFile(path, content, state.userPrefs._sha, `chore: preferenze home di ${state.session.username} (retry)`);
+        const res2 = await gh.putFile(path, content, state.userPrefs._sha, `chore: preferenze home di ${state.session.username} (retry)`, false, { silent: true });
         state.userPrefs._sha = res2.content.sha;
       } else {
         throw e;
