@@ -1922,10 +1922,10 @@ function renderSedeBucketHeader(s, customLabel, gruppo) {
   // Se è un bucket dinamico (nessuna sede ma customLabel presente): mostra solo la sezione
   if (!s && customLabel) {
     // Eredita edificio dall'UOC ma omettilo nell'header (è già visibile nel contesto pagina)
-    return `<span class="sede-bucket-tipo">${escapeHtml(customLabel)}</span>`;
+    return `<span class="sede-bucket-title"><span class="sede-bucket-tipo">${escapeHtml(customLabel)}</span></span>`;
   }
   if (!s) {
-    return `<span class="sede-bucket-tipo">${escapeHtml(customLabel || '—')}</span>`;
+    return `<span class="sede-bucket-title"><span class="sede-bucket-tipo">${escapeHtml(customLabel || '—')}</span></span>`;
   }
   // Priorità al campo `nome` (nuovo formato), poi tipoLabels, poi tipo raw
   const label = s.nome || tipoLabels[s.tipo] || (s.tipo || '').replace(/_/g, ' ');
@@ -1942,8 +1942,9 @@ function renderSedeBucketHeader(s, customLabel, gruppo) {
   const ind = s.indirizzo || (gruppo && gruppo.ubicazione && gruppo.ubicazione.indirizzo);
   if (ind && !parts.some(p => p.includes(ind))) parts.push(escapeHtml(ind));
   const loc = parts.join(' · ');
-  return `<span class="sede-bucket-tipo">${escapeHtml(label)}</span>
-    ${loc ? `<span class="sede-bucket-loc">${loc}</span>` : ''}`;
+  // tipo e loc nello stesso wrapper inline: così il luogo fluisce subito dopo il nome
+  // (e va a capo sotto, allineato a sinistra) invece di finire in una colonna a destra.
+  return `<span class="sede-bucket-title"><span class="sede-bucket-tipo">${escapeHtml(label)}</span>${loc ? ` <span class="sede-bucket-loc">${loc}</span>` : ''}</span>`;
 }
 
 // Collasso/espansione LOCALE di un bucket sezione nei Preferiti (sia sezioni UOC
