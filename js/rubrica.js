@@ -906,6 +906,10 @@ function renderNumeri(filter, targetContainer) {
                 // Se siamo in modalità "default chiuso": il bucket è chiuso salvo che l'utente non l'abbia aperto
                 // In modalità isCollapsedSearch (match per contatto/sezione): SEMPRE aperto, NIENTE toggle.
                 const isOpen = isCollapsedSearch ? true : (defaultOpen ? !collapsed.has(b.sedeKey) : expanded.has(b.sedeKey));
+                // Badge "MdG" a destra del titolo sezione se il bucket contiene un medico di guardia.
+                const mdgBadge = bucketHasGuardia(b)
+                  ? '<span class="sede-bucket-mdg" title="Presente medico di guardia">MdG</span>'
+                  : '';
                 // Header del bucket: in modalità collassata mostra "UOC ridotta · Sezione" senza caret/toggle
                 let bucketHeaderHtml;
                 if (isCollapsedSearch) {
@@ -916,6 +920,7 @@ function renderNumeri(filter, targetContainer) {
                     <span class="sede-bucket-tipo">
                       <span class="ctx-uoc" onclick="event.stopPropagation();_navigateOutOfRubricaSearch('numeri',{filter:'${escapeJs(g.id)}'})" title="Apri ${escapeHtml(g.nome)}">${escapeHtml(uocShort)}</span><span class="sede-bucket-sep"> · </span><span class="ctx-sezione sede-bucket-sez" onclick="event.stopPropagation();openUocWithSede('${escapeJs(g.id)}','${escapeJs(b.sedeKey)}')" title="Apri ${escapeHtml(g.nome)} con ${escapeHtml(sezioneLabel)} espansa">${escapeHtml(sezioneLabel)}</span>
                     </span>
+                    ${mdgBadge}
                   </div>`;
                 } else if (matchedByName) {
                   // Match per nome UOC durante ricerca: il bucket sezione è un link che apre la
@@ -927,6 +932,7 @@ function renderNumeri(filter, targetContainer) {
                       : `<span class="sede-bucket-tipo">Altro</span>`);
                   bucketHeaderHtml = `<button class="sede-bucket-toggle sede-bucket-navigate" onclick="openUocWithSede('${escapeJs(g.id)}','${escapeJs(b.sedeKey)}')" title="Apri ${escapeHtml(g.nome)} con questa sezione espansa">
                     ${headerInner}
+                    ${mdgBadge}
                   </button>`;
                 } else {
                   const headerInner = b.sede
@@ -937,6 +943,7 @@ function renderNumeri(filter, targetContainer) {
                   bucketHeaderHtml = `<button class="sede-bucket-toggle ${isOpen ? 'open' : ''}" onclick="toggleSedeBucket('${escapeJs(g.id)}','${escapeJs(b.sedeKey)}', ${defaultOpen})">
                     <span class="sede-bucket-caret">${isOpen ? '▾' : '▸'}</span>
                     ${headerInner}
+                    ${mdgBadge}
                   </button>`;
                 }
                 return `<div class="sede-bucket" data-bucket="${escapeHtml(b.sedeKey)}">
@@ -1886,6 +1893,16 @@ function groupContattiBySede(contatti, sezioni) {
 }
 
 // Header per bucket sede operativa (rubrica raggruppata)
+// Vero se il bucket sezione contiene almeno un contatto classificato come medico di
+// guardia (stesso criterio della pillola rossa MdG sulle righe: classifyContatto.kind).
+// Include anche i contatti delle eventuali sottosezioni.
+function bucketHasGuardia(b) {
+  const check = (list) => (list || []).some(c => classifyContatto(c).kind === 'guardia');
+  if (check(b.contatti)) return true;
+  if (b.subBuckets && b.subBuckets.some(sb => check(sb.contatti))) return true;
+  return false;
+}
+
 function renderSedeBucketHeader(s, customLabel, gruppo) {
   const tipoLabels = {
     reparto: 'Reparto', sala_operatoria: 'Sala operatoria',
