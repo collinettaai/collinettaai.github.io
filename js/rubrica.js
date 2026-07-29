@@ -790,6 +790,19 @@ function renderNumeri(filter, targetContainer) {
           const displayName = isGuardiaFilter
             ? stripPrefixNome(g.nome)
             : (rubricaQuery ? shortenUocName(g) : g.nome);
+          // Pulsante espandi/comprimi tutte le sezioni della UOC: solo fuori dalla ricerca
+          // (viste "Tutti" e singola UOC) e quando ci sono più bucket sezione toggleabili.
+          const _btnBuckets = groupContattiBySede(sortContattiForDisplay(g.contatti || []), g.sezioni);
+          const _btnFlatSingle = _btnBuckets.length === 1 && _btnBuckets[0].sedeKey === '_all';
+          const _showToggleAll = !rubricaQuery && _btnBuckets.length > 1 && !_btnFlatSingle;
+          let _allExpanded = false;
+          if (_showToggleAll) {
+            const _isUocOverview = !!filter && filter !== 'guardia' && filteredGruppi.length === 1;
+            const _defaultOpen = !_isUocOverview;
+            const _exp = (state.expandedSedi && state.expandedSedi[g.id]) || new Set();
+            const _col = (state.collapsedSedi && state.collapsedSedi[g.id]) || new Set();
+            _allExpanded = _btnBuckets.every(b => _defaultOpen ? !_col.has(b.sedeKey) : _exp.has(b.sedeKey));
+          }
           return `
           <div class="numeri-group${isCollapsedSearch ? ' numeri-group-collapsed' : ''}">
             ${isCollapsedSearch ? '' : `<h2 class="numeri-group-title"><span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -801,6 +814,7 @@ function renderNumeri(filter, targetContainer) {
               }
               <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center;">
                 ${isManuallyExpanded ? `<button class="btn-icon-mini" onclick="collapseGroup('${escapeJs(g.id)}')" title="Nascondi tutti i numeri di questa UOC" style="font-size:11px;color:var(--ink-muted);">↕ nascondi</button>` : ''}
+                ${_showToggleAll ? `<button class="btn-icon-mini" onclick="toggleAllSedi('${escapeJs(g.id)}', ${_allExpanded ? 'false' : 'true'})" title="${_allExpanded ? 'Comprimi tutte le sezioni' : 'Espandi tutte le sezioni'}" aria-label="${_allExpanded ? 'Comprimi tutte le sezioni' : 'Espandi tutte le sezioni'}" style="font-size:16px;">${_allExpanded ? '⊟' : '⊞'}</button>` : ''}
                 <span class="edit-only" style="display:inline-flex;gap:6px;">
                   <button class="btn-icon-mini" onclick="renameGruppoNumeri('${escapeJs(g.id)}')" title="Modifica gruppo">✎</button>
                   <button class="btn-icon-mini" onclick="deleteGruppoNumeri('${escapeJs(g.id)}')" title="Elimina gruppo">🗑</button>
@@ -1977,6 +1991,32 @@ function toggleSedeBucket(gid, sedeKey, defaultOpen) {
   }
   // Re-render only this bucket area: simplest is full re-render of numeri view
   // Salvo la posizione di scroll e la ripristino dopo il render per evitare jump in cima
+  const savedScroll = window.scrollY || document.documentElement.scrollTop;
+  const params = state.currentParams || {};
+  renderNumeri(params.filter);
+  requestAnimationFrame(() => window.scrollTo({ top: savedScroll, behavior: 'instant' }));
+}
+
+// Espande o comprime TUTTE le sezioni (bucket) di una UOC in un colpo solo.
+// Impostando sia expandedSedi sia collapsedSedi si forza lo stato voluto a
+// prescindere dalla modalità default-aperto/chiuso (vedi toggleSedeBucket):
+// - espandi: expanded = tutte le sedeKey, collapsed = vuoto → sempre aperti
+// - comprimi: expanded = vuoto, collapsed = tutte le sedeKey → sempre chiusi
+function toggleAllSedi(gid, expand) {
+  if (!state.expandedSedi) state.expandedSedi = {};
+  if (!state.collapsedSedi) state.collapsedSedi = {};
+  const g = getVisibleNumeriGroups().find(x => x.id === gid);
+  const keys = g
+    ? groupContattiBySede(sortContattiForDisplay(g.contatti || []), g.sezioni).map(b => b.sedeKey)
+    : [];
+  if (expand) {
+    state.expandedSedi[gid] = new Set(keys);
+    state.collapsedSedi[gid] = new Set();
+  } else {
+    state.expandedSedi[gid] = new Set();
+    state.collapsedSedi[gid] = new Set(keys);
+  }
+  // Re-render conservando lo scroll (come toggleSedeBucket)
   const savedScroll = window.scrollY || document.documentElement.scrollTop;
   const params = state.currentParams || {};
   renderNumeri(params.filter);
