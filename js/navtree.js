@@ -1491,7 +1491,8 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
       { label: isNew ? 'Crea' : 'Salva', onClick: async () => {
         const etichetta = $('ce-etichetta').value.trim();
         if (!etichetta) return toast('Etichetta obbligatoria', 'warning');
-        const numeri = $('ce-numeri').value.split(',').map(s => s.trim()).filter(Boolean).map(n => /^\d+$/.test(n) ? parseInt(n, 10) : n);
+        // I numeri interni restano stringhe: parseInt eliminerebbe gli zeri iniziali (es. "05314").
+        const numeri = $('ce-numeri').value.split(',').map(s => s.trim()).filter(Boolean);
         const breveStr = $('ce-breve').value.trim();
         const cellularePersonaleStr2 = $('ce-cellulare-personale').value.trim();
         const cellularePersonaleList = cellularePersonaleStr2.split(',').map(s => s.trim()).filter(Boolean);
