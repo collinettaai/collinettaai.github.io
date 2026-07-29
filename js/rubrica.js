@@ -678,7 +678,7 @@ function renderNumeri(filter, targetContainer) {
         <span style="font-size:11px;color:var(--ink-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;">Filtro:</span>
         <span class="filter-chip-uoc">
           ${escapeHtml(stripPrefixNome(filterGruppo.nome))}
-          <button onclick="navigate('numeri')" title="Rimuovi filtro UOC" style="background:none;border:none;color:inherit;font-size:14px;cursor:pointer;padding:0 0 0 4px;line-height:1;opacity:.7;">✕</button>
+          <button onclick="navigate('numeri', {filter:'all'})" title="Rimuovi filtro UOC" style="background:none;border:none;color:inherit;font-size:14px;cursor:pointer;padding:0 0 0 4px;line-height:1;opacity:.7;">✕</button>
         </span>
       </div>` ;
     })()}
