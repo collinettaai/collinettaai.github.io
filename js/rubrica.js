@@ -393,6 +393,10 @@ function renderNumeri(filter, targetContainer) {
 
   let filteredGruppi = allGroups;
   let filterLabel = null;
+  // UOC di contesto quando si è dentro una singola UOC: risolta sia se `filter` è un
+  // id gruppo, sia se è uno slug di contatto (ingresso da preferiti/fissati/ricerca).
+  // Usata più sotto per il chip filtro blu e il placeholder "Cerca in <UOC>…".
+  let filterGruppo = null;
   let activeSource = 'aopd'; // quale fonte stiamo guardando: aopd (default), osa, iov
   if (filter === 'all') {
     // "Tutti": mostra tutti i gruppi (nessun filtro), senza redirect ai preferiti.
@@ -430,6 +434,7 @@ function renderNumeri(filter, targetContainer) {
       filteredGruppi = [gruppoMatch];
       filterLabel = `UOC: ${gruppoMatch.nome}`;
       activeSource = gruppoMatch._source || 'aopd';
+      filterGruppo = gruppoMatch;
     } else {
       // Fallback: filter è un contatto slug.
       // Mostro la UOC completa (non più contatto isolato) e scrollo al contatto
@@ -442,6 +447,7 @@ function renderNumeri(filter, targetContainer) {
           filteredGruppi = [ownerGroup];
           filterLabel = `UOC: ${ownerGroup.nome}`;
           activeSource = ownerGroup._source || 'aopd';
+          filterGruppo = ownerGroup;
           // Risolvi il sedeKey della sezione del contatto per espandere solo quella.
           // groupContattiBySede genera sedeKey come slug della sezione (vedi quella funzione).
           // Apriamo la sezione corrispondente settando state.expandedSedi[gruppoId].
@@ -657,7 +663,7 @@ function renderNumeri(filter, targetContainer) {
 
     <div class="rubrica-search" style="margin-bottom:8px;display:flex;align-items:center;gap:10px;">
       <div style="position:relative;flex:1;display:flex;align-items:center;">
-        <input type="text" id="rubrica-search-input" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="${filter === 'pinned' ? 'Cerca tra i preferiti' : (filter && allGroups.find(g => g.id === filter) ? `Cerca in ${escapeHtml(stripPrefixNome(allGroups.find(g => g.id === filter).nome))}…` : 'Cerca in rubrica: nome, interno, reparto…')}"
+        <input type="text" id="rubrica-search-input" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="${filter === 'pinned' ? 'Cerca tra i preferiti' : (filterGruppo ? `Cerca in ${escapeHtml(stripPrefixNome(filterGruppo.nome))}…` : 'Cerca in rubrica: nome, interno, reparto…')}"
           value="${escapeHtml(state.rubricaSearch || '')}"
           oninput="onRubricaSearchInput(this.value)"
           style="flex:1;font-family:var(--sans);font-size:16px;padding:10px 36px 10px 14px;background:var(--bg-raised);border:1px solid var(--rule);border-radius:2px;color:var(--ink);width:100%;box-sizing:border-box;">
@@ -666,13 +672,12 @@ function renderNumeri(filter, targetContainer) {
       ${rubricaQuery ? `<span style="font-size:12px;color:var(--ink-muted);font-family:var(--mono);white-space:nowrap;">${filteredGruppi.length} UOC · ${totalContattiVisibili} contatti</span>` : ''}
     </div>
     ${(function(){
-      // Chip filtro UOC quando si è dentro una UOC specifica
-      const gruppoMatch = filter ? allGroups.find(g => g.id === filter) : null;
-      if (!gruppoMatch) return '';
+      // Chip filtro UOC quando si è dentro una UOC specifica (per id gruppo o slug contatto)
+      if (!filterGruppo) return '';
       return `<div style="margin-bottom:24px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <span style="font-size:11px;color:var(--ink-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;">Filtro:</span>
         <span class="filter-chip-uoc">
-          ${escapeHtml(stripPrefixNome(gruppoMatch.nome))}
+          ${escapeHtml(stripPrefixNome(filterGruppo.nome))}
           <button onclick="navigate('numeri')" title="Rimuovi filtro UOC" style="background:none;border:none;color:inherit;font-size:14px;cursor:pointer;padding:0 0 0 4px;line-height:1;opacity:.7;">✕</button>
         </span>
       </div>` ;
