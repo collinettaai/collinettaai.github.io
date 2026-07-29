@@ -37,12 +37,20 @@ function closeModal() {
 // Mostra spinner + messaggio principale e un sottotitolo opzionale (es. progresso "2/5").
 // Blocca click e navigazione finché non viene chiuso con hideBlockingOverlay().
 let _blockingActive = false;
+// Stato dell'overlay "automatico" alzato dalle scritture GitHub (vedi withSaveOverlay).
+let _autoOverlayOwned = false;      // l'overlay attuale è stato alzato da noi?
+let _autoOverlayDepth = 0;          // scritture attualmente in volo
+let _autoOverlayHideTimer = null;   // chiusura ritardata per non lampeggiare tra scritture sequenziali
 window.addEventListener('beforeunload', (e) => {
   if (_blockingActive) { e.preventDefault(); e.returnValue = ''; return ''; }
 });
 function showBlockingOverlay(msg, sub) {
   const el = document.getElementById('blocking-overlay');
   if (!el) return;
+  // Una chiamata esplicita (operazione multi-step con messaggio proprio) prende il
+  // controllo dell'overlay: annulla la gestione automatica in corso.
+  if (_autoOverlayHideTimer) { clearTimeout(_autoOverlayHideTimer); _autoOverlayHideTimer = null; }
+  _autoOverlayOwned = false;
   el.innerHTML = `
     <div class="blocking-card" role="status" aria-live="polite">
       <div class="blocking-spinner"></div>
@@ -63,11 +71,46 @@ function updateBlockingOverlay(msg, sub) {
 function hideBlockingOverlay() {
   const el = document.getElementById('blocking-overlay');
   if (!el) return;
+  if (_autoOverlayHideTimer) { clearTimeout(_autoOverlayHideTimer); _autoOverlayHideTimer = null; }
+  _autoOverlayOwned = false;
   el.classList.remove('show');
   el.innerHTML = '';
   el.setAttribute('aria-hidden', 'true');
   _blockingActive = false;
 }
+
+// Avvolge una scrittura su GitHub (salvataggio/eliminazione) mostrando l'overlay
+// bloccante, così durante l'operazione non si possono cliccare altri pulsanti.
+// - Nesting-aware: se un chiamante esterno ha già alzato l'overlay con un proprio
+//   messaggio (operazioni multi-step), non lo tocca e non lo chiude in anticipo.
+// - La chiusura è ritardata di ~250ms per non far lampeggiare l'overlay tra
+//   scritture sequenziali (es. putFile seguito da deleteFile in uno spostamento).
+async function withSaveOverlay(fn, msg, sub) {
+  // Un overlay attivo ma non nostro appartiene a un chiamante esterno: non interferire.
+  const externalOverlay = _blockingActive && !_autoOverlayOwned;
+  if (!externalOverlay) {
+    if (_autoOverlayHideTimer) { clearTimeout(_autoOverlayHideTimer); _autoOverlayHideTimer = null; }
+    if (!_autoOverlayOwned) {
+      showBlockingOverlay(msg || 'Salvataggio in corso…', sub || 'Attendere il completamento, non chiudere la pagina.');
+      _autoOverlayOwned = true;
+    }
+    _autoOverlayDepth++;
+  }
+  try {
+    return await fn();
+  } finally {
+    if (!externalOverlay) {
+      _autoOverlayDepth--;
+      if (_autoOverlayDepth === 0 && _autoOverlayOwned) {
+        _autoOverlayHideTimer = setTimeout(() => {
+          _autoOverlayHideTimer = null;
+          if (_autoOverlayDepth === 0 && _autoOverlayOwned) hideBlockingOverlay();
+        }, 250);
+      }
+    }
+  }
+}
+window.withSaveOverlay = withSaveOverlay;
 
 // Esegue un'azione asincrona (salvataggio/modifica) mostrando uno spinner nel pulsante e
 // disabilitandolo finché non finisce, così l'utente non può cliccare più volte.

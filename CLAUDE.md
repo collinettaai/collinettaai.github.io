@@ -207,7 +207,10 @@ attuale:
   (`state.index`, `state.searchFilter`)
 - **`js/modal.js`**: MODAL — modali generiche (`showModal`, `closeModal`),
   overlay bloccante (`showBlockingOverlay`/`updateBlockingOverlay`/
-  `hideBlockingOverlay`), segnalazioni (`openSegnalazioneModal`,
+  `hideBlockingOverlay`, più `withSaveOverlay` che avvolge automaticamente le
+  scritture GitHub in `gh.putFile`/`gh.deleteFile` mostrando l'overlay durante
+  il salvataggio — nesting-aware, chiusura ritardata, saltata con
+  `opts.silent` dai lock), segnalazioni (`openSegnalazioneModal`,
   `SEGNALAZIONI_PATH`) e l'oggetto `Modals` (esposto su `window.Modals`).
   Taglio di testa del segmento C dopo l'estrazione di SEARCH: estratto
   integralmente, il segmento inline residuo riparte da INIT

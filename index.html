@@ -3932,46 +3932,55 @@ const gh = {
     if (etag) etagCache.set('tree:' + CONFIG.BRANCH, { etag, content: data, type: 'tree', lastChecked: nowIso() });
     return data;
   },
-  async putFile(path, content, sha, message, contentIsBase64 = false) {
-    const url = `${CONFIG.API_BASE}/repos/${CONFIG.REPO_OWNER}/${this._repo()}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`;
-    let contentB64;
-    if (contentIsBase64) {
-      // Caller ha già fatto base64 encoding (file binari come immagini)
-      contentB64 = content;
-    } else {
-      const enc = new TextEncoder();
-      const bytes = enc.encode(content);
-      let binary = '';
-      bytes.forEach(b => binary += String.fromCharCode(b));
-      contentB64 = btoa(binary);
-    }
-    const body = { message, content: contentB64, branch: CONFIG.BRANCH };
-    if (sha) body.sha = sha;
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: { ...this._headers(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (res.status === 409 || res.status === 422) {
-      const txt = await res.text();
-      if (txt.includes('does not match') || txt.includes('conflict') || res.status === 409) {
-        const err = new Error('conflict'); err.code = 'CONFLICT'; throw err;
+  // opts.silent = true salta l'overlay bloccante (usato dai lock, scritture di plumbing in background).
+  async putFile(path, content, sha, message, contentIsBase64 = false, opts = {}) {
+    const _do = async () => {
+      const url = `${CONFIG.API_BASE}/repos/${CONFIG.REPO_OWNER}/${this._repo()}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`;
+      let contentB64;
+      if (contentIsBase64) {
+        // Caller ha già fatto base64 encoding (file binari come immagini)
+        contentB64 = content;
+      } else {
+        const enc = new TextEncoder();
+        const bytes = enc.encode(content);
+        let binary = '';
+        bytes.forEach(b => binary += String.fromCharCode(b));
+        contentB64 = btoa(binary);
       }
-      throw new Error(`PUT ${path}: ${res.status} ${txt}`);
-    }
-    if (!res.ok) throw new Error(`PUT ${path}: ${res.status} ${await res.text()}`);
-    return await res.json();
+      const body = { message, content: contentB64, branch: CONFIG.BRANCH };
+      if (sha) body.sha = sha;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { ...this._headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.status === 409 || res.status === 422) {
+        const txt = await res.text();
+        if (txt.includes('does not match') || txt.includes('conflict') || res.status === 409) {
+          const err = new Error('conflict'); err.code = 'CONFLICT'; throw err;
+        }
+        throw new Error(`PUT ${path}: ${res.status} ${txt}`);
+      }
+      if (!res.ok) throw new Error(`PUT ${path}: ${res.status} ${await res.text()}`);
+      return await res.json();
+    };
+    if (opts.silent || typeof withSaveOverlay !== 'function') return _do();
+    return withSaveOverlay(_do, 'Salvataggio in corso…');
   },
-  async deleteFile(path, sha, message) {
-    const url = `${CONFIG.API_BASE}/repos/${CONFIG.REPO_OWNER}/${this._repo()}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`;
-    const body = { message, sha, branch: CONFIG.BRANCH };
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: { ...this._headers(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error(`DELETE ${path}: ${res.status}`);
-    return await res.json();
+  async deleteFile(path, sha, message, opts = {}) {
+    const _do = async () => {
+      const url = `${CONFIG.API_BASE}/repos/${CONFIG.REPO_OWNER}/${this._repo()}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`;
+      const body = { message, sha, branch: CONFIG.BRANCH };
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: { ...this._headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error(`DELETE ${path}: ${res.status}`);
+      return await res.json();
+    };
+    if (opts.silent || typeof withSaveOverlay !== 'function') return _do();
+    return withSaveOverlay(_do, 'Eliminazione in corso…');
   }
 };
 // Esposto su window per il modulo LetterAI (letteraai-module.js), che accede via window.gh.
@@ -4662,7 +4671,8 @@ const locks = {
       ? 'locks: {}\n'
       : 'locks:\n' + jsyaml.dump(locksObj, { indent: 2, lineWidth: 120 }).replace(/^/gm, '  ');
     const content = header + locksYaml;
-    return gh.putFile('locks.yml', content, sha, `chore(locks): ${action}`);
+    // silent: i lock sono plumbing (acquire/release/renew in background), niente overlay.
+    return gh.putFile('locks.yml', content, sha, `chore(locks): ${action}`, false, { silent: true });
   },
   isExpired(lock) {
     if (!lock || !lock.scade) return true;
