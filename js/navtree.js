@@ -1522,7 +1522,8 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
         if (cellulareAziendaleList.length === 1) newC.cellulare_aziendale = cellulareAziendaleList[0];
         else if (cellulareAziendaleList.length > 1) newC.cellulare_aziendale = cellulareAziendaleList;
         else delete newC.cellulare_aziendale;
-        if (breveStr) { const n = parseInt(breveStr, 10); newC.breve = isNaN(n) ? breveStr : n; } else delete newC.breve;
+        // breve resta stringa: parseInt eliminerebbe gli zeri iniziali (es. "05314").
+        if (breveStr) newC.breve = breveStr; else delete newC.breve;
         if (email) newC.email = email; else delete newC.email;
         if (sezione) newC.sezione = sezione; else delete newC.sezione;
         const sottosezioneEl = document.getElementById('ce-sottosezione');
