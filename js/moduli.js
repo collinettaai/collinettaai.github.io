@@ -148,6 +148,7 @@ async function loadModuloDettaglio(slug, options) {
   // Snapshot pristine dei box per dirty detection (deep clone). Se boxesData è null
   // (skipBoxes=true), pristine viene popolato in loadModuloBoxes() al momento del fetch.
   const pristineBoxes = boxesData ? JSON.parse(JSON.stringify(boxesData.box || [])) : null;
+  const pristineCampi = boxesData ? JSON.parse(JSON.stringify(boxesData.campi_richiesti || [])) : null;
 
   // Se sessionStorage aveva già metadati (boxesData, formValues, ecc. da una sessione precedente),
   // li preservo e aggiungo solo pageUrls/pageUrlsLight appena fetchati. Altrimenti creo da zero.
@@ -158,10 +159,11 @@ async function loadModuloDettaglio(slug, options) {
     boxesData: cachedMeta.boxesData || boxesData,
     boxesSha: cachedMeta.boxesSha || boxesSha,
     pristineBoxes: cachedMeta.pristineBoxes || pristineBoxes,
+    pristineCampi: cachedMeta.pristineCampi || pristineCampi,
     pageUrls,
     pageUrlsLight,
   } : {
-    boxesData, boxesSha, pristineBoxes,
+    boxesData, boxesSha, pristineBoxes, pristineCampi,
     pageUrls, pageUrlsLight,
     formValues: {},
     currentPage: 1,
@@ -206,6 +208,7 @@ async function loadModuloBoxes(slug) {
   c.boxesData = boxesData;
   c.boxesSha = boxesSha;
   c.pristineBoxes = JSON.parse(JSON.stringify(boxesData.box || []));
+  c.pristineCampi = JSON.parse(JSON.stringify(boxesData.campi_richiesti || []));
   return c;
 }
 
@@ -264,7 +267,13 @@ function _boxesAreDirty(slug) {
   const c = state.moduliCache[slug];
   if (!c || !c.pristineBoxes) return false;
   const cur = c.boxesData.box || [];
-  return JSON.stringify(cur) !== JSON.stringify(c.pristineBoxes);
+  if (JSON.stringify(cur) !== JSON.stringify(c.pristineBoxes)) return true;
+  // Anche le modifiche ai campi (aggiunta/rinomina/eliminazione) contano come non salvate.
+  if (c.pristineCampi != null) {
+    const curCampi = c.boxesData.campi_richiesti || [];
+    if (JSON.stringify(curCampi) !== JSON.stringify(c.pristineCampi)) return true;
+  }
+  return false;
 }
 
 // Costruisce il valore visibile del box a partire dai valoriCampi del form e dalla def del campo.
@@ -1078,6 +1087,26 @@ function _renderModuloEditorPanel(slug, det) {
             <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxFontSize('${escapeJs(slug)}',${selIdx},+0.2)" aria-label="Aumenta dimensione font">+</button>
           </div>
         </div>
+        ${!isFirma ? `
+          <div class="mod-field-group">
+            <label class="mod-field-label">Testo</label>
+            <div class="mod-segmented">
+              <button class="mod-seg ${!selBox.multiline ? 'active' : ''}" onclick="setBoxMultiline('${escapeJs(slug)}',${selIdx},false)">Una riga</button>
+              <button class="mod-seg ${selBox.multiline ? 'active' : ''}" onclick="setBoxMultiline('${escapeJs(slug)}',${selIdx},true)">Più righe</button>
+            </div>
+          </div>
+          ${selBox.multiline ? `
+            <div class="mod-field-group">
+              <label class="mod-field-label">Interlinea (distanza tra le righe)</label>
+              <div class="mod-fontsize-stepper">
+                <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLineHeight('${escapeJs(slug)}',${selIdx},-0.1)" aria-label="Riduci interlinea">−</button>
+                <input type="text" inputmode="decimal" class="mod-input mod-fs-input mod-lh-input" value="${selBox.line_height || 1.2}"
+                       oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'line_height',Math.min(3,Math.max(0.8,parseFloat(this.value)||1.2)))">
+                <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLineHeight('${escapeJs(slug)}',${selIdx},+0.1)" aria-label="Aumenta interlinea">+</button>
+              </div>
+            </div>
+          ` : ''}
+        ` : ''}
         <div class="mod-form-actions" style="margin-top:12px;display:flex;gap:8px;">
           <button class="btn ghost" onclick="duplicateModuloBox('${escapeJs(slug)}',${selIdx})">Duplica</button>
           <button class="btn ghost" style="color:#A32D2D;" onclick="deleteModuloBox('${escapeJs(slug)}',${selIdx})">Elimina</button>
@@ -1109,10 +1138,125 @@ function _renderModuloEditorPanel(slug, det) {
       <p style="margin:6px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">Inserendo/rimuovendo pagine i box scorrono con le rispettive pagine; quelli della pagina rimossa vengono eliminati. Operazione salvata subito sul repo.</p>
     </div>
     <div class="mod-edit-section">
+      <div class="mod-edit-section-title">Campi del modulo (${campiDefs.length})</div>
+      <div class="mod-campi-list">
+        ${campiDefs.length ? campiDefs.map(cd => `
+          <div class="mod-campo-item">
+            <span class="mod-campo-label">${escapeHtml(cd.label)}</span>
+            <span class="mod-campo-tipo">${escapeHtml(_tipoCampoLabel(cd.tipo))}</span>
+            <button class="mod-campo-btn" title="Rinomina / cambia tipo" onclick="editModuloCampo('${escapeJs(slug)}','${escapeJs(cd.id)}')">✎</button>
+            <button class="mod-campo-btn" title="Elimina campo" style="color:#A32D2D;" onclick="deleteModuloCampo('${escapeJs(slug)}','${escapeJs(cd.id)}')">×</button>
+          </div>`).join('') : '<p style="margin:0;color:var(--ink-muted);font-size:12px;font-style:italic;">Nessun campo.</p>'}
+      </div>
+      <button class="btn ghost" style="margin-top:8px;" onclick="addModuloCampo('${escapeJs(slug)}')">+ Aggiungi campo</button>
+      <p style="margin:6px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">I campi qui elencati sono selezionabili come "Campo associato" nei box. Es. "Quesito diagnostico" (testo lungo).</p>
+    </div>
+    <div class="mod-edit-section">
       <div class="mod-edit-section-title">Tutti i box (${boxes.length})</div>
       <div class="mod-box-list">${boxListHtml}</div>
     </div>
     ${detailsHtml}`;
+}
+
+// Etichetta leggibile per il tipo di campo (usata nella lista campi dell'editor).
+function _tipoCampoLabel(tipo) {
+  const map = {
+    testo: 'Testo breve', testo_lungo: 'Testo lungo', data: 'Data',
+    paziente_completo: 'Paziente', medico_nome: 'Medico'
+  };
+  return map[tipo] || tipo;
+}
+
+// Tipi di campo creabili dall'utente nell'editor (i compositi paziente/medico restano
+// riservati ai template e non vengono esposti qui).
+const _MODULO_CAMPO_TIPI = [
+  { value: 'testo', label: 'Testo breve (una riga)' },
+  { value: 'testo_lungo', label: 'Testo lungo (più righe)' },
+  { value: 'data', label: 'Data' }
+];
+
+// Apre la modale per creare (campoId null) o modificare un campo del modulo.
+function addModuloCampo(slug) { _openCampoModal(slug, null); }
+function editModuloCampo(slug, campoId) { _openCampoModal(slug, campoId); }
+
+function _openCampoModal(slug, campoId) {
+  const c = state.moduliCache[slug];
+  if (!c || !c.boxesData) return;
+  const campi = c.boxesData.campi_richiesti || [];
+  const existing = campoId ? campi.find(x => x.id === campoId) : null;
+  const isEdit = !!existing;
+  // Se il campo è di tipo composito (paziente/medico) non espongo il selettore tipo: solo rinomina.
+  const tipoRiservato = isEdit && !_MODULO_CAMPO_TIPI.some(t => t.value === existing.tipo);
+  const tipoOpts = _MODULO_CAMPO_TIPI
+    .map(t => `<option value="${t.value}" ${existing && existing.tipo === t.value ? 'selected' : ''}>${escapeHtml(t.label)}</option>`)
+    .join('');
+  const body = `
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:12px;color:var(--ink-muted);margin-bottom:4px;">Etichetta *</label>
+      <input type="text" id="campo-label-input" class="mono-input" style="width:100%;" placeholder="es. Quesito diagnostico" value="${escapeHtml(existing ? existing.label : '')}">
+    </div>
+    ${tipoRiservato
+      ? `<p style="font-size:12px;color:var(--ink-muted);margin:0;">Tipo: ${escapeHtml(_tipoCampoLabel(existing.tipo))} (non modificabile)</p>`
+      : `<div>
+          <label style="display:block;font-size:12px;color:var(--ink-muted);margin-bottom:4px;">Tipo</label>
+          <select id="campo-tipo-input" class="mono-input" style="width:100%;">${tipoOpts}</select>
+        </div>`}`;
+  showModal({
+    title: isEdit ? 'Modifica campo' : 'Nuovo campo',
+    body,
+    actions: [
+      { label: 'Annulla', variant: 'ghost', onClick: () => closeModal() },
+      { label: isEdit ? 'Salva' : 'Aggiungi', onClick: () => _confermaCampoModal(slug, campoId) }
+    ]
+  });
+  setTimeout(() => { const el = document.getElementById('campo-label-input'); if (el) el.focus(); }, 50);
+}
+
+function _confermaCampoModal(slug, campoId) {
+  const c = state.moduliCache[slug];
+  if (!c || !c.boxesData) return;
+  if (!c.boxesData.campi_richiesti) c.boxesData.campi_richiesti = [];
+  const campi = c.boxesData.campi_richiesti;
+  const label = (document.getElementById('campo-label-input') || {}).value;
+  const labelTrim = (label || '').trim();
+  if (!labelTrim) { toast('Etichetta obbligatoria', 'warning'); return; }
+  const tipoEl = document.getElementById('campo-tipo-input');
+  if (campoId) {
+    const existing = campi.find(x => x.id === campoId);
+    if (!existing) { closeModal(); return; }
+    existing.label = labelTrim;
+    if (tipoEl) existing.tipo = tipoEl.value;
+  } else {
+    const tipo = tipoEl ? tipoEl.value : 'testo';
+    // id univoco derivato dall'etichetta
+    let base = slugifyLocal(labelTrim).slice(0, 40) || 'campo';
+    let id = base, n = 2;
+    while (campi.some(x => x.id === id)) { id = base + '-' + n; n++; }
+    campi.push({ id, label: labelTrim, tipo });
+  }
+  closeModal();
+  _persistModulo(slug);
+  refreshModuloOverlays(slug);
+  _refreshModuloEditorPanelLight(slug);
+}
+
+function deleteModuloCampo(slug, campoId) {
+  const c = state.moduliCache[slug];
+  if (!c || !c.boxesData) return;
+  const campi = c.boxesData.campi_richiesti || [];
+  const campo = campi.find(x => x.id === campoId);
+  if (!campo) return;
+  const boxesUsing = (c.boxesData.box || []).filter(b => b.campo === campoId);
+  const msg = boxesUsing.length
+    ? `Eliminare il campo "${campo.label}"?\n\nÈ associato a ${boxesUsing.length} box: verranno scollegati (i box restano ma senza campo).`
+    : `Eliminare il campo "${campo.label}"?`;
+  if (!confirm(msg)) return;
+  c.boxesData.campi_richiesti = campi.filter(x => x.id !== campoId);
+  // Scollega i box che usavano il campo eliminato
+  (c.boxesData.box || []).forEach(b => { if (b.campo === campoId) { b.campo = ''; delete b.formato; } });
+  _persistModulo(slug);
+  refreshModuloOverlays(slug);
+  _refreshModuloEditorPanelLight(slug);
 }
 
 // Sceglie un box (lo evidenzia + apre il pannello dettagli)
@@ -1225,6 +1369,35 @@ function changeBoxFontSize(slug, idx, delta) {
   if (next === cur) return;
   c.boxesData.box[idx].font_size = next;
   const input = document.querySelector('.mod-fs-input');
+  if (input) input.value = next;
+  _persistModulo(slug);
+  refreshModuloOverlays(slug);
+  _refreshModuloToolbar(slug);
+}
+
+// Attiva/disattiva il testo su più righe per un box. Con multiline attivo il testo va a capo
+// (a-capo automatico + \n espliciti) e diventa regolabile con l'interlinea. Cambia i controlli
+// del pannello (mostra/nasconde l'interlinea), quindi qui SI fa re-render del panel.
+function setBoxMultiline(slug, idx, val) {
+  const c = state.moduliCache[slug];
+  if (!c || !c.boxesData.box || !c.boxesData.box[idx]) return;
+  const box = c.boxesData.box[idx];
+  if (val) { box.multiline = true; if (box.line_height == null) box.line_height = 1.2; }
+  else { delete box.multiline; delete box.line_height; }
+  _persistModulo(slug);
+  refreshModuloOverlays(slug);
+  _refreshModuloEditorPanelLight(slug);
+}
+
+// Incrementa/decrementa l'interlinea del box selezionato (solo box multi-riga). Step 0.1, range 0.8–3.
+function changeBoxLineHeight(slug, idx, delta) {
+  const c = state.moduliCache[slug];
+  if (!c || !c.boxesData.box || !c.boxesData.box[idx]) return;
+  const cur = c.boxesData.box[idx].line_height || 1.2;
+  const next = Math.round(Math.max(0.8, Math.min(3, cur + delta)) * 10) / 10;
+  if (next === cur) return;
+  c.boxesData.box[idx].line_height = next;
+  const input = document.querySelector('.mod-lh-input');
   if (input) input.value = next;
   _persistModulo(slug);
   refreshModuloOverlays(slug);
@@ -1701,8 +1874,8 @@ function refreshModuloOverlays(slug) {
     const handles = isSelected ? `
       <span class="mod-handle mod-handle-resize" data-handle="tr" title="Trascina per ridimensionare">⤢</span>
     ` : '';
-    return `<div class="mod-box ${isEmpty ? 'empty' : ''} ${placeholder ? 'placeholder' : ''} ${isFirma ? 'firma' : ''} ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''} ${align === 'center' ? 'align-center' : align === 'right' ? 'align-right' : ''}"
-              data-box-idx="${i}" data-font-pct="${fontSizePct}"
+    return `<div class="mod-box ${isEmpty ? 'empty' : ''} ${placeholder ? 'placeholder' : ''} ${isFirma ? 'firma' : ''} ${b.multiline ? 'multiline' : ''} ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''} ${align === 'center' ? 'align-center' : align === 'right' ? 'align-right' : ''}"
+              data-box-idx="${i}" data-font-pct="${fontSizePct}"${b.multiline ? ` data-multiline="1" data-line-height="${b.line_height || 1.2}"` : ''}
               style="left:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%;
                      text-align:${align};"
               title="${escapeHtml(b.campo || b.label || '')}"><span class="mod-box-text">${escapeHtml(display)}</span>${handles}</div>`;
@@ -1757,6 +1930,18 @@ function _autoFitBoxFont(boxEl) {
   const fam = cs.fontFamily || 'sans-serif';
   const style = cs.fontStyle || 'normal';
   const weight = cs.fontWeight || '400';
+  // Box multi-riga: mando a capo il testo, calcolo il font che entra in larghezza+altezza con
+  // l'interlinea richiesta e riscrivo lo span con gli a-capo calcolati (così la preview mostra
+  // ESATTAMENTE le stesse righe della stampa, che usa lo stesso algoritmo di wrapping).
+  if (boxEl.dataset.multiline === '1') {
+    const lineHeight = parseFloat(boxEl.dataset.lineHeight) || 1.2;
+    const buildFont = s => `${style} ${weight} ${s}px ${fam}`;
+    const { size, lines } = _fitMultilineFont(ctx, text, availW, availH, baseSize, MIN_SIZE, lineHeight, buildFont);
+    boxEl.style.fontSize = size + 'px';
+    boxEl.style.lineHeight = String(lineHeight);
+    textEl.textContent = lines.join('\n');
+    return;
+  }
   ctx.font = `${style} ${weight} ${baseSize}px ${fam}`;
   const measuredW = ctx.measureText(text).width;
   let size = baseSize;
@@ -1764,6 +1949,49 @@ function _autoFitBoxFont(boxEl) {
   if (size > availH) size = availH;
   if (size < MIN_SIZE) size = MIN_SIZE;
   boxEl.style.fontSize = size + 'px';
+}
+
+// Divide `text` in righe rispettando gli a-capo espliciti (\n) e mandando a capo le parole che
+// non entrano in `maxWidth`. `ctx.font` deve essere già impostato. Condiviso tra l'auto-fit
+// dell'editor e il rendering su canvas (stampa) per ottenere righe identiche nelle due viste.
+function _wrapBoxLines(ctx, text, maxWidth) {
+  const lines = [];
+  const paragraphs = String(text).split('\n');
+  for (const para of paragraphs) {
+    if (!para) { lines.push(''); continue; }
+    const tokens = para.split(/(\s+)/); // conserva gli spazi come token separati
+    let line = '';
+    for (const tok of tokens) {
+      const candidate = line + tok;
+      if (line && ctx.measureText(candidate).width > maxWidth) {
+        lines.push(line.replace(/\s+$/, ''));
+        line = tok.replace(/^\s+/, '');
+      } else {
+        line = candidate;
+      }
+    }
+    lines.push(line.replace(/\s+$/, ''));
+  }
+  return lines;
+}
+
+// Trova la dimensione font massima (partendo da baseSize, min minSize) per cui il testo, mandato
+// a capo su maxWidth=availW con interlinea lineHeight, entra in availW×availH. Ritorna {size, lines}.
+// buildFont(size) → stringa font completa per ctx.
+function _fitMultilineFont(ctx, text, availW, availH, baseSize, minSize, lineHeight, buildFont) {
+  let size = baseSize;
+  let lines = [];
+  for (let i = 0; i < 100; i++) {
+    ctx.font = buildFont(size);
+    lines = _wrapBoxLines(ctx, text, availW);
+    const totalH = lines.length * size * lineHeight;
+    let maxW = 0;
+    for (const ln of lines) { const w = ctx.measureText(ln).width; if (w > maxW) maxW = w; }
+    if (totalH <= availH && maxW <= availW) break;
+    if (size <= minSize) { size = minSize; ctx.font = buildFont(size); lines = _wrapBoxLines(ctx, text, availW); break; }
+    size = Math.max(minSize, size * 0.94);
+  }
+  return { size, lines };
 }
 
 // Bind degli eventi drag/resize/click sui box. Pointer events unificati per mouse+touch.
@@ -2128,13 +2356,7 @@ async function _renderModuloPaginaSuCanvas(slug, pageIndex /* 1-based */) {
     const availW = Math.max(1, w - padW);
     const availH = Math.max(1, h);
     const MIN_SIZE_PX = Math.max((0.6 / 100) * canvas.height, 4);
-    let fontSize = ((b.font_size || 2.0) / 100) * canvas.height;
-    ctx.font = `${fontSize}px ${fontFamily}`;
-    const measuredW = ctx.measureText(value).width;
-    if (measuredW > availW) fontSize = fontSize * (availW / measuredW);
-    if (fontSize > availH) fontSize = availH;
-    if (fontSize < MIN_SIZE_PX) fontSize = MIN_SIZE_PX;
-    ctx.font = `${fontSize}px ${fontFamily}`;
+    const baseSize = ((b.font_size || 2.0) / 100) * canvas.height;
 
     ctx.textAlign = b.align === 'center' ? 'center' : (b.align === 'right' ? 'right' : 'left');
 
@@ -2143,15 +2365,35 @@ async function _renderModuloPaginaSuCanvas(slug, pageIndex /* 1-based */) {
     if (b.align === 'center') drawX = x + w / 2;
     else if (b.align === 'right') drawX = x + w;
 
-    // Centratura verticale del testo nel box
-    const drawY = y + (h - fontSize) / 2;
-
     // Clip al rettangolo del box per evitare overflow visivo
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, w, h);
     ctx.clip();
-    ctx.fillText(value, drawX, drawY);
+
+    if (b.multiline) {
+      // Testo su più righe: stesso wrapping dell'editor (righe identiche in preview e stampa).
+      const lineHeight = b.line_height || 1.2;
+      const buildFont = s => `${s}px ${fontFamily}`;
+      const { size, lines } = _fitMultilineFont(ctx, value, availW, availH, baseSize, MIN_SIZE_PX, lineHeight, buildFont);
+      ctx.font = buildFont(size);
+      const totalH = lines.length * size * lineHeight;
+      let startY = y + (availH - totalH) / 2;
+      if (startY < y) startY = y;  // blocco di testo più alto del box → parti dal bordo (verrà clippato)
+      for (let li = 0; li < lines.length; li++) {
+        ctx.fillText(lines[li], drawX, startY + li * size * lineHeight);
+      }
+    } else {
+      let fontSize = baseSize;
+      ctx.font = `${fontSize}px ${fontFamily}`;
+      const measuredW = ctx.measureText(value).width;
+      if (measuredW > availW) fontSize = fontSize * (availW / measuredW);
+      if (fontSize > availH) fontSize = availH;
+      if (fontSize < MIN_SIZE_PX) fontSize = MIN_SIZE_PX;
+      ctx.font = `${fontSize}px ${fontFamily}`;
+      const drawY = y + (h - fontSize) / 2;  // centratura verticale
+      ctx.fillText(value, drawX, drawY);
+    }
     ctx.restore();
   });
 
@@ -2499,8 +2741,9 @@ function scartaModuloBoxesModifiche(slug) {
   const c = state.moduliCache[slug];
   if (!c || !c.pristineBoxes) return;
   if (!_boxesAreDirty(slug)) return toast('Nessuna modifica da scartare', 'info');
-  if (!confirm('Scartare tutte le modifiche locali ai box?\n\nLe modifiche non salvate andranno perse.')) return;
+  if (!confirm('Scartare tutte le modifiche locali (box e campi)?\n\nLe modifiche non salvate andranno perse.')) return;
   c.boxesData.box = JSON.parse(JSON.stringify(c.pristineBoxes));
+  if (c.pristineCampi != null) c.boxesData.campi_richiesti = JSON.parse(JSON.stringify(c.pristineCampi));
   c.selectedBoxIdx = null;
   _persistModulo(slug);
   renderModuloCompilatore(slug, c);

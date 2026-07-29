@@ -870,6 +870,12 @@ body.is-dragging-modulo-box{touch-action:none;overscroll-behavior:none;user-sele
    lo spostamento anche per box centrati. La classe è immune alla ri-serializzazione. */
 .mod-box.align-center .mod-box-text{justify-content:center}
 .mod-box.align-right .mod-box-text{justify-content:flex-end}
+/* Box multi-riga: il testo va a capo (white-space:pre con a-capo calcolati dall'auto-fit) e il
+   blocco di righe resta centrato verticalmente dal flex del .mod-box (height:auto sul testo). */
+.mod-box.multiline{white-space:pre}
+.mod-box.multiline .mod-box-text{display:block;white-space:pre;width:100%;height:auto;max-height:100%;overflow:hidden;text-align:left}
+.mod-box.multiline.align-center .mod-box-text{text-align:center}
+.mod-box.multiline.align-right .mod-box-text{text-align:right}
 .mod-box.empty{background:rgba(0,0,0,.04);outline:1px dashed rgba(0,0,0,.25);color:rgba(0,0,0,.3);font-style:italic}
 /* Box con placeholder esemplificativo (in editMode quando non ha ancora valore reale).
    Stile: testo nero come il testo reale (massima leggibilità) ma background giallo chiaro
@@ -938,6 +944,14 @@ body.is-dragging-modulo-box{touch-action:none;overscroll-behavior:none;user-sele
 .mod-box-list-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mod-box-list-page{font-family:var(--mono);font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.05em}
 .mod-edit-details{margin-top:14px;padding-top:14px;border-top:1px solid var(--rule-soft);display:grid;gap:12px}
+/* Lista campi del modulo (editor box) */
+.mod-campi-list{display:flex;flex-direction:column;gap:2px;border:1px solid var(--rule-soft);border-radius:2px;background:var(--bg-base)}
+.mod-campo-item{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:12px;border-bottom:1px solid var(--rule-soft)}
+.mod-campo-item:last-child{border-bottom:none}
+.mod-campo-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mod-campo-tipo{font-family:var(--mono);font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.mod-campo-btn{flex:0 0 auto;background:transparent;border:none;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;color:var(--ink-muted)}
+.mod-campo-btn:hover{color:var(--ink)}
 
 /* Su mobile in editMode: layout più compatto */
 .mod-layout-edit .mod-form{max-height:none}

@@ -301,6 +301,8 @@ Cerca sempre per marcatore di commento o nome di funzione.
 | Moduli: pagine | `inserisciPaginaModulo` / `rimuoviPaginaModulo` |
 | Moduli: eliminare | `confirmDeleteModulo` / `doDeleteModulo` |
 | Font box modulo (% altezza) | `_autoFitBoxFont`, `_renderModuloPaginaSuCanvas` |
+| Moduli: campi (aggiungi/rinomina/elimina) | `js/moduli.js`: `addModuloCampo`, `editModuloCampo`, `deleteModuloCampo`, `_openCampoModal` (modificano `campi_richiesti`; dirty via `pristineCampi`) |
+| Moduli: box multi-riga / interlinea | `js/moduli.js`: `setBoxMultiline`, `changeBoxLineHeight`, `_wrapBoxLines`, `_fitMultilineFont` (attributi box `multiline`/`line_height`; CSS `.mod-box.multiline`) |
 | Overlay bloccante | `js/modal.js`: `showBlockingOverlay` |
 
 ---
