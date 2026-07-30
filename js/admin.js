@@ -48,6 +48,78 @@ async function renderGestioneUtenti() {
   }
 }
 
+// Unisce il set predefinito (DEFAULT_CUSTOM_SEZIONI) nelle preferenze di un utente.
+// Idempotente: se esiste già una sezione con lo stesso nome aggiunge solo i contatti
+// mancanti, altrimenti crea la sezione. Ritorna true se qualcosa è cambiato.
+function _mergeDefaultSezioni(prefs) {
+  if (!prefs || typeof prefs !== 'object') return false;
+  if (!Array.isArray(prefs.custom_sezioni)) prefs.custom_sezioni = [];
+  const norm = s => (s || '').trim().toLowerCase();
+  let changed = false;
+  DEFAULT_CUSTOM_SEZIONI.forEach((tpl, i) => {
+    let sez = prefs.custom_sezioni.find(s => norm(s.nome) === norm(tpl.nome));
+    if (!sez) {
+      sez = { id: 'cs-def-' + Date.now().toString(36) + '-' + i, nome: tpl.nome, contatti: [] };
+      prefs.custom_sezioni.push(sez);
+      changed = true;
+    }
+    if (!Array.isArray(sez.contatti)) sez.contatti = [];
+    (tpl.contatti || []).forEach(cid => {
+      if (!sez.contatti.includes(cid)) { sez.contatti.push(cid); changed = true; }
+    });
+  });
+  return changed;
+}
+
+// Azione admin one-shot: applica il set di sezioni preferite predefinite a TUTTI gli utenti
+// esistenti (file content/user-prefs/*.yml). Idempotente e ripetibile: non duplica, non tocca
+// le sezioni/contatti già presenti oltre al set. L'admin corrente è gestito in memoria.
+async function applyDefaultSezioniAllUsers() {
+  if (!isAdmin()) return;
+  const n = DEFAULT_CUSTOM_SEZIONI.length;
+  if (!confirm(`Applicare il set predefinito di ${n} sezioni preferite a TUTTI gli utenti?\n\nAggiunge le sezioni mancanti (e i contatti mancanti nelle sezioni con lo stesso nome), senza toccare il resto. È ripetibile senza creare duplicati.\n\nProcedere?`)) return;
+  let items;
+  try {
+    items = await gh.listDir('content/user-prefs');
+  } catch (e) {
+    toast('Impossibile elencare le preferenze utenti: ' + (e && e.message || e), 'error');
+    return;
+  }
+  const files = (items || []).filter(f => f && f.type === 'file' && /\.yml$/i.test(f.name || ''));
+  const me = state.session && state.session.username;
+  const prog = showProgressModal('Applico sezioni preferite predefinite…', files.length);
+  let updated = 0, invariati = 0, falliti = 0;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const username = f.name.replace(/\.yml$/i, '');
+    prog.update(i, files.length, username);
+    // L'admin corrente lo gestisco a parte in memoria (sha/salvataggio via userPrefs.persist)
+    if (me && username === me) { invariati++; continue; }
+    try {
+      const file = await gh.getFile(f.path);
+      const prefs = (file && file.content) ? (jsyaml.load(file.content) || {}) : {};
+      if (!_mergeDefaultSezioni(prefs)) { invariati++; continue; }
+      prefs.ultima_modifica = nowIso();
+      prefs.modificato_da = me || 'admin';
+      const content = `# Preferenze home personali per ${username}\n# Gestite dall'app, non modificare a mano\n\n` +
+        jsyaml.dump(prefs, { lineWidth: 120, noRefs: true, sortKeys: false });
+      await gh.putFile(f.path, content, file ? file.sha : null, `chore: applica sezioni preferite predefinite a ${username}`, false, { silent: true });
+      updated++;
+      // Pausa breve tra le scritture: evita i rate-limit secondari di GitHub su molte putFile.
+      await new Promise(r => setTimeout(r, 200));
+    } catch (e) {
+      console.warn('[applyDefaultSezioniAllUsers]', username, e);
+      falliti++;
+    }
+  }
+  prog.update(files.length, files.length, 'Completato');
+  prog.close();
+  // Preferenze dell'admin corrente: merge in memoria + salvataggio normale.
+  if (state.userPrefs && _mergeDefaultSezioni(state.userPrefs)) userPrefs.scheduleSave();
+  toast(`Sezioni predefinite applicate. Aggiornati ${updated}, invariati ${invariati}${falliti ? ', falliti ' + falliti : ''}.`, falliti ? 'warning' : 'success');
+}
+window.applyDefaultSezioniAllUsers = applyDefaultSezioniAllUsers;
+
 function renderGestioneUtentiView() {
   const data = gestioneUtentiState._data || { utenti: {} };
   const users = data.utenti || {};
@@ -103,6 +175,7 @@ function renderGestioneUtentiView() {
         <button class="btn ghost" onclick="modificaPermessiRuoli()">Permessi per ruolo</button>
         <button class="btn ghost" onclick="navigate('richieste')">Richieste di modifica</button>
         <button class="btn ghost" onclick="navigate('cestino-utenti')">Cestino utenti</button>
+        <button class="btn ghost" onclick="applyDefaultSezioniAllUsers()" title="Aggiunge il set di sezioni preferite predefinite a tutti gli utenti (operazione ripetibile, non duplica)">Applica sezioni preferite</button>
         <button class="btn ghost" onclick="navigate('attivita')">Attività recente</button>
         <button class="btn ghost" onclick="exportContentIndex()">Esporta contenuto (NotebookLM)</button>
         <button class="btn ghost" onclick="exportFileTree()">Esporta file tree</button>
