@@ -48,36 +48,41 @@ async function renderGestioneUtenti() {
   }
 }
 
-// Unisce il set predefinito (DEFAULT_CUSTOM_SEZIONI) nelle preferenze di un utente.
-// Idempotente: se esiste già una sezione con lo stesso nome aggiunge solo i contatti
-// mancanti, altrimenti crea la sezione. Ritorna true se qualcosa è cambiato.
-function _mergeDefaultSezioni(prefs) {
+// Unisce il set predefinito `tpl` (array [{nome, contatti:[id,...]}], da getPreferitiDefault)
+// nelle preferenze di un utente. Idempotente: se esiste già una sezione con lo stesso nome
+// aggiunge solo i contatti mancanti, altrimenti crea la sezione. Ritorna true se cambia qualcosa.
+function _mergeDefaultSezioni(prefs, tpl) {
   if (!prefs || typeof prefs !== 'object') return false;
+  if (!Array.isArray(tpl) || !tpl.length) return false;
   if (!Array.isArray(prefs.custom_sezioni)) prefs.custom_sezioni = [];
   const norm = s => (s || '').trim().toLowerCase();
   let changed = false;
-  DEFAULT_CUSTOM_SEZIONI.forEach((tpl, i) => {
-    let sez = prefs.custom_sezioni.find(s => norm(s.nome) === norm(tpl.nome));
+  tpl.forEach((t, i) => {
+    let sez = prefs.custom_sezioni.find(s => norm(s.nome) === norm(t.nome));
     if (!sez) {
-      sez = { id: 'cs-def-' + Date.now().toString(36) + '-' + i, nome: tpl.nome, contatti: [] };
+      sez = { id: 'cs-def-' + Date.now().toString(36) + '-' + i, nome: t.nome, contatti: [] };
       prefs.custom_sezioni.push(sez);
       changed = true;
     }
     if (!Array.isArray(sez.contatti)) sez.contatti = [];
-    (tpl.contatti || []).forEach(cid => {
+    (t.contatti || []).forEach(cid => {
       if (!sez.contatti.includes(cid)) { sez.contatti.push(cid); changed = true; }
     });
   });
   return changed;
 }
 
-// Azione admin one-shot: applica il set di sezioni preferite predefinite a TUTTI gli utenti
-// esistenti (file content/user-prefs/*.yml). Idempotente e ripetibile: non duplica, non tocca
-// le sezioni/contatti già presenti oltre al set. L'admin corrente è gestito in memoria.
+// Azione admin one-shot: applica il set di sezioni preferite predefinite (content/preferiti-default.yml)
+// a TUTTI gli utenti esistenti (file content/user-prefs/*.yml). Idempotente e ripetibile: non duplica,
+// non tocca le sezioni/contatti già presenti oltre al set. L'admin corrente è gestito in memoria.
 async function applyDefaultSezioniAllUsers() {
   if (!isAdmin()) return;
-  const n = DEFAULT_CUSTOM_SEZIONI.length;
-  if (!confirm(`Applicare il set predefinito di ${n} sezioni preferite a TUTTI gli utenti?\n\nAggiunge le sezioni mancanti (e i contatti mancanti nelle sezioni con lo stesso nome), senza toccare il resto. È ripetibile senza creare duplicati.\n\nProcedere?`)) return;
+  const tpl = await getPreferitiDefault(true); // fresco dal repo dati, non dalla cache
+  if (!tpl.length) {
+    toast('Nessun set predefinito trovato (content/preferiti-default.yml assente o vuoto).', 'warning');
+    return;
+  }
+  if (!confirm(`Applicare il set predefinito di ${tpl.length} sezioni preferite a TUTTI gli utenti?\n\nAggiunge le sezioni mancanti (e i contatti mancanti nelle sezioni con lo stesso nome), senza toccare il resto. È ripetibile senza creare duplicati.\n\nProcedere?`)) return;
   let items;
   try {
     items = await gh.listDir('content/user-prefs');
@@ -98,7 +103,7 @@ async function applyDefaultSezioniAllUsers() {
     try {
       const file = await gh.getFile(f.path);
       const prefs = (file && file.content) ? (jsyaml.load(file.content) || {}) : {};
-      if (!_mergeDefaultSezioni(prefs)) { invariati++; continue; }
+      if (!_mergeDefaultSezioni(prefs, tpl)) { invariati++; continue; }
       prefs.ultima_modifica = nowIso();
       prefs.modificato_da = me || 'admin';
       const content = `# Preferenze home personali per ${username}\n# Gestite dall'app, non modificare a mano\n\n` +
@@ -115,7 +120,7 @@ async function applyDefaultSezioniAllUsers() {
   prog.update(files.length, files.length, 'Completato');
   prog.close();
   // Preferenze dell'admin corrente: merge in memoria + salvataggio normale.
-  if (state.userPrefs && _mergeDefaultSezioni(state.userPrefs)) userPrefs.scheduleSave();
+  if (state.userPrefs && _mergeDefaultSezioni(state.userPrefs, tpl)) userPrefs.scheduleSave();
   toast(`Sezioni predefinite applicate. Aggiornati ${updated}, invariati ${invariati}${falliti ? ', falliti ' + falliti : ''}.`, falliti ? 'warning' : 'success');
 }
 window.applyDefaultSezioniAllUsers = applyDefaultSezioniAllUsers;

@@ -2568,92 +2568,38 @@ function initNumeriCorrelatiPicker() {
 //   {type:'categoria', cat}               // procedure macro category
 //   {type:'contatto', id}
 
-// Set predefinito di sezioni preferite ("sezioni personalizzate") assegnato ai NUOVI account
-// (seeding al primo login) e applicabile ai VECCHI via azione admin (applyDefaultSezioniAllUsers).
-// I contatti sono ID (campo `id` dei contatti in numeri.yml, risolti da findContattoBySlug);
+// Set predefinito di sezioni preferite ("sezioni personalizzate") caricato dal REPO DATI
+// (content/preferiti-default.yml), NON hardcoded: così è modificabile senza deploy del codice.
+// Formato atteso:  sezioni: [ { nome: "GUARDIA", contatti: [id, ...] }, ... ]
+// I contatti sono ID (campo `id` dei contatti in numeri.yml, risolti da findContattoBySlug):
 // un id che non esiste in rubrica viene semplicemente ignorato in fase di render.
-const DEFAULT_CUSTOM_SEZIONI = [
-  { nome: 'GUARDIA', contatti: [
-    'pronto-soccorso-area-rossa-3228',
-    'pronto-soccorso-studio-medici-area-rossa-2587',
-    'pronto-soccorso-pronto-soccorso-medico-2856',
-    'neurologia-consulenze-7941',
-    'neurologia-medico-di-guardia-7609',
-    'neurologia-medico-di-guardia-7928',
-    'neuroradiologia-medico-di-guardia-7716',
-    'pronto-soccorso-postazione-logistica-area-verde-2463',
-    'trasporto-ammalati-trasporto-persone-per-i-reparti-2855'
-  ] },
-  { nome: 'NEURO', contatti: [
-    'neurologia-medico-di-guardia-7609',
-    'neurologia-medico-di-guardia-7928',
-    'neurologia-consulenze-7941',
-    'neurologia-co-guardia-7979',
-    'neurologia-guardiola-caposala-3615',
-    'neurologia-reparto-stroke-unit-7378',
-    'neurologia-studio-medici-donne-1948',
-    'neurologia-studio-medici-uomini-1947',
-    'neurologia-stanza-infermieri-uomini-3614',
-    'neurologia-day-hospital-8149',
-    'neurologia-ambulatorio-e-e-g-3605',
-    'neurologia-ambulatorio-e-m-g-3606',
-    'neurologia-laboratorio-3607'
-  ] },
-  { nome: 'NEURORADIO', contatti: [
-    'neuroradiologia-medico-di-guardia-7716',
-    'neuroradiologia-interventista-neuroradiologia-7946',
-    'neuroradiologia-sala-angiografica-3219',
-    'neuroradiologia-tac-3668',
-    'neuroradiologia-tecnico-rx-7861',
-    'clinica-pediatrica-radiologia-pediatrica-sala-lettura-6198',
-    'neuroradiologia-sala-lettura-rm-3t-8570'
-  ] },
-  { nome: 'NEUROTIPO', contatti: [
-    'neuro-anestesia-rianimazione-medico-di-guardia-anestesista-97012'
-  ] },
-  { nome: 'NCH', contatti: [
-    'neurochirurgia-medico-di-guardia-3652',
-    'nch-ped-funzionale-bis-medico-reperibile-7067'
-  ] },
-  { nome: 'CARDIO', contatti: [
-    'cardiologia-medico-di-guardia-7503',
-    'cardiologia-amb-n-2-referti-ecg-2393'
-  ] },
-  { nome: 'CHIRURGIA', contatti: [
-    'cardiochirurgia-stanza-cardiochirurgo-di-guardia-2431',
-    'chir-gen-1-urgenza-medico-di-guardia-chirurgia-generale-7523',
-    'chir-gen-3-colorettale-medico-di-guardia-7108',
-    'chir-gen-1-urgenza-medico-di-guardia-chirurgia-1-z9aa',
-    'chir-gen-2-trapianti-fegato-medico-di-guardia-7548',
-    'chir-maxillo-medico-di-guardia-maxillo-facciale-7594',
-    'chir-plastica-medico-di-guardia-chirurgia-plastica-7459',
-    'chir-urgenza-medico-di-guardia-infermiere-c-o-ps-chirurgico-7411',
-    'chir-vascolare-medico-di-guardia-chirurgia-vascolare-7922',
-    'chir-toracica-medico-per-consulenze-7600'
-  ] },
-  { nome: 'IOV', contatti: [
-    'oncologia-2-oncologo-di-guardia-7562',
-    'radioterapia-radioterapista-di-guardia-7980'
-  ] },
-  { nome: 'LABORATORIO', contatti: [
-    'medicina-laboratorio-laboratorio-centrale-7952',
-    'medicina-laboratorio-info-esami-urgenza-3996',
-    'medicina-laboratorio-laboratorio-urgenze-2790',
-    'medicina-laboratorio-percorso-stroke-urgentissime-da-ps-7854'
-  ] },
-  { nome: 'CONSULENTI', contatti: [
-    'malattie-infettive-dr-lo-menzo-5131',
-    'oculistica-ambulatorio-n-4-1840',
-    'orl-dr-marchese-ragona-7060',
-    'orl-resp-uosd-apnee-disfagie-prof-marchese-ragona-rosario-8626',
-    'clinica-ortopedica-dr-roda-1796'
-  ] }
-];
+// Usato per il seeding dei NUOVI account e per l'azione admin sui VECCHI.
+let _preferitiDefaultCache = null;
+async function getPreferitiDefault(force) {
+  if (_preferitiDefaultCache && !force) return _preferitiDefaultCache;
+  let arr = [];
+  try {
+    const file = await gh.getFile('content/preferiti-default.yml');
+    if (file && file.content) {
+      const parsed = jsyaml.load(file.content) || {};
+      const raw = Array.isArray(parsed.sezioni) ? parsed.sezioni
+                : (Array.isArray(parsed) ? parsed : []);
+      arr = raw
+        .filter(s => s && s.nome)
+        .map(s => ({ nome: String(s.nome), contatti: Array.isArray(s.contatti) ? s.contatti.map(String) : [] }));
+    }
+  } catch (e) {
+    console.warn('[preferiti-default] caricamento fallito:', e);
+  }
+  _preferitiDefaultCache = arr;
+  return arr;
+}
 
-// Costruisce il set predefinito con id di sezione univoci (usato al seeding di un nuovo account).
-function _buildDefaultCustomSezioni() {
+// Costruisce il set predefinito con id di sezione univoci (seeding di un nuovo account).
+async function _buildDefaultCustomSezioni() {
+  const tpl = await getPreferitiDefault();
   const base = Date.now().toString(36);
-  return DEFAULT_CUSTOM_SEZIONI.map((s, i) => ({
+  return tpl.map((s, i) => ({
     id: 'cs-def-' + base + '-' + i,
     nome: s.nome,
     contatti: (s.contatti || []).slice()
@@ -2668,8 +2614,10 @@ const userPrefs = {
     try {
       const file = await gh.getFile(path);
       if (!file) {
-        // Nuovo account (nessun file preferenze): parte con il set di sezioni preferite predefinito.
-        state.userPrefs = { pins: [], home_numeri: [], pin_order: {}, device_prefs: {}, calendar_filters: {}, custom_sezioni: _buildDefaultCustomSezioni(), pref_uoc: [], pazienti_salvati: [], note_giorno: [], _sha: null };
+        // Nuovo account (nessun file preferenze): parte con il set di sezioni preferite predefinito
+        // caricato dal repo dati. Se il file manca, custom_sezioni resta vuoto.
+        state.userPrefs = { pins: [], home_numeri: [], pin_order: {}, device_prefs: {}, calendar_filters: {}, custom_sezioni: [], pref_uoc: [], pazienti_salvati: [], note_giorno: [], _sha: null };
+        try { state.userPrefs.custom_sezioni = await _buildDefaultCustomSezioni(); } catch (e) { console.warn('[seed sezioni predefinite]', e); }
         // Persisto subito così il file viene creato col set predefinito anche senza altre modifiche.
         userPrefs.scheduleSave();
         return;
