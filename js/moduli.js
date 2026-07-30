@@ -23,6 +23,7 @@ function _persistModulo(slug) {
     boxesData: c.boxesData,
     boxesSha: c.boxesSha,
     pristineBoxes: c.pristineBoxes,
+    pristineCampi: c.pristineCampi,
     formValues: c.formValues,
     currentPage: c.currentPage,
     zoom: c.zoom,
@@ -266,6 +267,12 @@ async function _probeModuloPagine(slug) {
 function _boxesAreDirty(slug) {
   const c = state.moduliCache[slug];
   if (!c || !c.pristineBoxes) return false;
+  // Baseline dei campi mancante (es. modulo ripristinato da sessionStorage, che in passato
+  // non salvava pristineCampi): la inizializzo alla situazione corrente, così l'aggiunta o la
+  // modifica di un campo viene poi rilevata come "non salvata" e compare il pulsante "Salva".
+  if (c.pristineCampi == null && c.boxesData) {
+    c.pristineCampi = JSON.parse(JSON.stringify(c.boxesData.campi_richiesti || []));
+  }
   const cur = c.boxesData.box || [];
   if (JSON.stringify(cur) !== JSON.stringify(c.pristineBoxes)) return true;
   // Anche le modifiche ai campi (aggiunta/rinomina/eliminazione) contano come non salvate.
@@ -2720,6 +2727,7 @@ async function _doSalvaModuloBoxes(slug) {
 
     // 3) Aggiorna snapshot pristine (= il salvato è ora il "nuovo pristine")
     c.pristineBoxes = JSON.parse(JSON.stringify(c.boxesData.box || []));
+    c.pristineCampi = JSON.parse(JSON.stringify(c.boxesData.campi_richiesti || []));
     _persistModulo(slug);
 
     toast('Modifiche salvate su GitHub', 'success');
