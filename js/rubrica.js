@@ -663,7 +663,7 @@ function renderNumeri(filter, targetContainer) {
 
     <div class="rubrica-search" style="margin-bottom:8px;display:flex;align-items:center;gap:10px;">
       <div style="position:relative;flex:1;display:flex;align-items:center;">
-        <input type="text" id="rubrica-search-input" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="${filter === 'pinned' ? 'Cerca tra i preferiti' : filter === 'guardia' ? 'Cerca numeri urgenze' : (filterGruppo ? `Cerca in ${escapeHtml(stripPrefixNome(filterGruppo.nome))}…` : 'Cerca in rubrica')}"
+        <input type="text" id="rubrica-search-input" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="${filter === 'pinned' ? 'Cerca tra i preferiti' : filter === 'guardia' ? 'Cerca numeri urgenze' : (filterGruppo ? `Cerca in ${escapeHtml(stripPrefixNome(filterGruppo.nome))}` : 'Cerca in rubrica')}"
           value="${escapeHtml(state.rubricaSearch || '')}"
           oninput="onRubricaSearchInput(this.value)"
           style="flex:1;font-family:var(--sans);font-size:16px;padding:10px 36px 10px 14px;background:var(--bg-raised);border:1px solid var(--rule);border-radius:2px;color:var(--ink);width:100%;box-sizing:border-box;">
