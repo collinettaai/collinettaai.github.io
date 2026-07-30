@@ -5411,6 +5411,12 @@ const urlRouter = (function() {
   return { buildHash, updateUrl, readUrl, init };
 })();
 
+// Timer/rAF di ripristino scroll ancora pendenti dal ramo restore (back/forward):
+// vengono annullati a ogni nuova navigazione, così non ripristinano la vecchia
+// posizione sulla pagina appena aperta.
+let _navScrollTimers = [];
+let _navScrollRaf = 0;
+
 function navigate(route, params = {}, navOpts = {}) {
   if (state.editingContext && state.editingContext.isDirty) {
     if (!confirm("Hai modifiche non salvate. Sicuro di uscire dall'editor?")) return;
@@ -5448,6 +5454,15 @@ function navigate(route, params = {}, navOpts = {}) {
   // corretto: NON faccio un nuovo pushState (eviterei di resettare _historyMax).
   if (typeof urlRouter !== 'undefined' && !(navOpts && navOpts.fromHistory)) urlRouter.updateUrl(route, params, navOpts && navOpts.replace);
   if (route !== 'search') $('global-search').value = '';
+
+  // Annulla eventuali ripristini di scroll ancora pendenti da una navigazione precedente
+  // (i timer [80,200,450]ms e il rAF del ramo restore qui sotto): senza questo, aprendo
+  // una nuova sezione entro quella finestra i timer scrollerebbero la pagina appena aperta
+  // alla vecchia posizione. Rivelo anche il contenuto, in caso fosse rimasto nascosto.
+  _navScrollTimers.forEach(id => clearTimeout(id));
+  _navScrollTimers = [];
+  if (_navScrollRaf) { cancelAnimationFrame(_navScrollRaf); _navScrollRaf = 0; }
+  { const _mcPrev = document.getElementById('main-content'); if (_mcPrev) _mcPrev.style.visibility = ''; }
 
   // Restore di scroll su back/forward: calcolo il target PRIMA del render e, se serve
   // riposizionare, nascondo il contenuto (visibility:hidden, mantiene il layout/altezza)
@@ -5513,14 +5528,14 @@ function navigate(route, params = {}, navOpts = {}) {
     // Ripristino SINCRONO, subito dopo il render (viste sincrone: layout già pronto).
     tryRestore();
     // Rivelo il contenuto al prossimo frame, quando lo scroll è già applicato.
-    requestAnimationFrame(() => { tryRestore(); _reveal(); });
+    _navScrollRaf = requestAnimationFrame(() => { _navScrollRaf = 0; tryRestore(); _reveal(); });
     // Rete di sicurezza: rivela comunque entro breve.
-    setTimeout(_reveal, 120);
+    _navScrollTimers.push(setTimeout(_reveal, 120));
     // Fallback per viste async (procedura/modulo/clinica) il cui contenuto/altezza arriva dopo.
-    [80, 200, 450].forEach(ms => setTimeout(() => {
+    [80, 200, 450].forEach(ms => _navScrollTimers.push(setTimeout(() => {
       const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       if (Math.abs((window.scrollY || 0) - _restoreY) > 4 && maxY >= _restoreY - 4) tryRestore();
-    }, ms));
+    }, ms)));
   } else {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
