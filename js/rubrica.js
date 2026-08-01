@@ -259,13 +259,13 @@ function openPinSezioniPopup(cid) {
   // Stile comune dei pulsanti-riga: testo a sinistra che va a capo (no overflow fuori dal rettangolo)
   const rowStyle = 'width:100%;text-align:left;margin-bottom:6px;white-space:normal;word-break:break-word;line-height:1.3;height:auto;';
   // Riga in evidenza: "Contatti fissati" della home (sistema home_numeri, separato dalle liste).
-  const homeRow = `<button class="btn ${inHome ? '' : 'ghost'}" data-pop-home="1" style="${rowStyle}${inHome ? 'background:var(--accent-soft);border-color:var(--accent);' : ''}"
+  const homeRow = `<button class="btn ${inHome ? '' : 'ghost'}" data-pop-home="1" style="${rowStyle}${inHome ? 'background:var(--accent-soft);border-color:var(--accent);color:var(--ink);' : ''}"
     onclick="toggleHomeNumeroFromPopup('${escapeJs(cid)}')"><span class="pop-ic">${inHome ? '📌' : '📍'}</span> Contatti fissati <span style="color:var(--ink-muted);font-weight:normal;">· in home</span></button>`;
-  const uocRow = `<button class="btn ${inUoc ? '' : 'ghost'}" data-pop-sez="_uoc" style="${rowStyle}${inUoc ? 'background:var(--accent-soft);border-color:var(--accent);' : ''}"
+  const uocRow = `<button class="btn ${inUoc ? '' : 'ghost'}" data-pop-sez="_uoc" style="${rowStyle}${inUoc ? 'background:var(--accent-soft);border-color:var(--accent);color:var(--ink);' : ''}"
     onclick="togglePinSezione('${escapeJs(cid)}','_uoc')"><span class="pop-ic">${inUoc ? '★' : '☆'}</span> Sezione UOC <span style="color:var(--ink-muted);font-weight:normal;">· ${escapeHtml(gNome)}</span></button>`;
   const customRows = sezioni.map(s => {
     const isIn = (s.contatti || []).includes(cid);
-    return `<button class="btn ${isIn ? '' : 'ghost'}" data-pop-sez="${escapeHtml(s.id)}" style="${rowStyle}${isIn ? 'background:var(--accent-soft);border-color:var(--accent);' : ''}"
+    return `<button class="btn ${isIn ? '' : 'ghost'}" data-pop-sez="${escapeHtml(s.id)}" style="${rowStyle}${isIn ? 'background:var(--accent-soft);border-color:var(--accent);color:var(--ink);' : ''}"
       onclick="togglePinSezione('${escapeJs(cid)}','${escapeJs(s.id)}')"><span class="pop-ic">${isIn ? '★' : '☆'}</span> ${escapeHtml(s.nome)}</button>`;
   }).join('');
   // Le liste personalizzate sono molte: le mostro collassate (occuperebbero tutta la pagina),
@@ -310,8 +310,8 @@ function togglePinSezione(cid, sezId) {
   if (btn) {
     btn.classList.toggle('ghost', !isIn);
     const ic = btn.querySelector('.pop-ic'); if (ic) ic.textContent = isIn ? '★' : '☆';
-    if (isIn) { btn.style.background = 'var(--accent-soft)'; btn.style.borderColor = 'var(--accent)'; }
-    else { btn.style.background = ''; btn.style.borderColor = ''; }
+    if (isIn) { btn.style.background = 'var(--accent-soft)'; btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--ink)'; }
+    else { btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = ''; }
   }
   // Aggiorno le stelle dei contatti visibili in pagina
   const pinned = userPrefs.isContattoStarred(cid);
@@ -335,8 +335,8 @@ function toggleHomeNumeroFromPopup(cid) {
   if (btn) {
     btn.classList.toggle('ghost', !inHome);
     const ic = btn.querySelector('.pop-ic'); if (ic) ic.textContent = inHome ? '📌' : '📍';
-    if (inHome) { btn.style.background = 'var(--accent-soft)'; btn.style.borderColor = 'var(--accent)'; }
-    else { btn.style.background = ''; btn.style.borderColor = ''; }
+    if (inHome) { btn.style.background = 'var(--accent-soft)'; btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--ink)'; }
+    else { btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = ''; }
   }
   const pinned = userPrefs.isContattoStarred(cid);
   document.querySelectorAll(`[data-pin-key="contatto:${cid}"]`).forEach(b => {
