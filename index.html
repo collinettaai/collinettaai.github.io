@@ -2112,6 +2112,10 @@ function nowIso() { return new Date().toISOString(); }
 // anche in standalone mode su iOS/Android).
 let _historyPos = 0;       // posizione corrente nella history del browser
 let _historyMax = 0;       // entry massima raggiunta (per sapere se "forward" è disponibile)
+// Integrazione modali/popup con il tasto indietro: showModal inserisce una entry "fantasma"
+// (stessa URL/pos, così il pos-tracking non si sporca) e il back la consuma chiudendo il popup.
+let _modalHasHistoryEntry = false;  // true se il popup aperto ha una entry nella history
+let _suppressNextPop = false;       // il prossimo popstate è la rimozione dell'entry (close via pulsante): ignoralo
 // True quando il prossimo popstate è stato scatenato dalle frecce interne (goBack/goForward),
 // non dal back nativo/gesture del browser. In quel caso NON consumiamo il back per chiudere
 // la tastiera: l'utente ha esplicitamente chiesto di navigare.
@@ -5334,6 +5338,16 @@ const urlRouter = (function() {
   // Cattura back/forward del browser, gesto swipe iOS/Android, tasto back hardware su PWA.
   function _onPopState(e) {
     if (_suppress) return;
+    // Popup/modale aperto: il tasto/gesto indietro chiude il popup invece di navigare nel
+    // background. L'entry "fantasma" è appena stata consumata dal back, quindi azzero il flag
+    // e chiudo solo il DOM (closeModal salta la rimozione history perché il flag è già false).
+    if (typeof isModalOpen === 'function' && isModalOpen()) {
+      _modalHasHistoryEntry = false;
+      if (typeof closeModal === 'function') closeModal();
+      return;
+    }
+    // Back "tecnico" della chiusura popup via pulsante (history.back in closeModal): non navigare.
+    if (_suppressNextPop) { _suppressNextPop = false; return; }
     // Tastiera aperta + gesture "indietro": il primo back deve solo chiudere la tastiera
     // (togliere il focus dall'input, come un tap fuori dal campo), SENZA svuotare il testo
     // digitato né navigare. Vale per input/textarea editabili (es. "Note del giorno", ricerca

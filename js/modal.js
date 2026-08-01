@@ -1,6 +1,14 @@
 /* ============================ MODAL ============================ */
+function isModalOpen() {
+  const c = $('modal-container');
+  return !!(c && c.innerHTML.trim());
+}
+function _clearModalDom() {
+  const c = $('modal-container');
+  if (c) c.innerHTML = '';
+}
 function showModal({ title, subtitle, body, actions }) {
-  closeModal();
+  _clearModalDom();
   const container = $('modal-container');
   const actionsHtml = (actions || []).map((a, i) => {
     const variant = a.variant === 'danger' ? 'danger' : a.variant === 'ghost' ? 'ghost' : '';
@@ -27,10 +35,26 @@ function showModal({ title, subtitle, body, actions }) {
   });
   const backdrop = $('current-modal-backdrop');
   if (backdrop) backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeModal(); });
+  // Inserisco una entry "fantasma" nella history così il tasto/gesto indietro chiude il popup
+  // invece di navigare. Se una entry del popup esiste già (riapertura in-place), la riuso.
+  if (!_modalHasHistoryEntry) {
+    try {
+      history.pushState({ ...(history.state || {}), __modal: true }, '', location.href);
+      _modalHasHistoryEntry = true;
+    } catch (e) {}
+  }
 }
 
 function closeModal() {
-  $('modal-container').innerHTML = '';
+  const hadEntry = _modalHasHistoryEntry;
+  _clearModalDom();
+  // Se il popup aveva inserito una entry nella history, la rimuovo senza far navigare il router:
+  // _suppressNextPop fa sì che _onPopState ignori il popstate generato da questo history.back().
+  if (hadEntry) {
+    _modalHasHistoryEntry = false;
+    _suppressNextPop = true;
+    try { history.back(); } catch (e) { _suppressNextPop = false; }
+  }
 }
 
 // Overlay bloccante per operazioni multi-step (gestione pagine, eliminazione moduli).

@@ -268,6 +268,15 @@ function openPinSezioniPopup(cid) {
     return `<button class="btn ${isIn ? '' : 'ghost'}" data-pop-sez="${escapeHtml(s.id)}" style="${rowStyle}${isIn ? 'background:var(--accent-soft);border-color:var(--accent);' : ''}"
       onclick="togglePinSezione('${escapeJs(cid)}','${escapeJs(s.id)}')"><span class="pop-ic">${isIn ? '★' : '☆'}</span> ${escapeHtml(s.nome)}</button>`;
   }).join('');
+  // Le liste personalizzate sono molte: le mostro collassate (occuperebbero tutta la pagina),
+  // con un'intestazione che indica quante sono e in quante è già presente il contatto.
+  const inCustomCount = sezioni.filter(s => (s.contatti || []).includes(cid)).length;
+  const customBlock = sezioni.length ? `
+    <button type="button" class="btn ghost" onclick="_togglePopCustomList(this)" style="${rowStyle}display:flex;align-items:center;gap:8px;">
+      <span class="pop-caret" style="font-family:var(--mono);font-size:11px;flex-shrink:0;">▸</span>
+      <span>Liste personalizzate <span style="color:var(--ink-muted);font-weight:normal;">· ${sezioni.length}${inCustomCount ? ` · in ${inCustomCount}` : ''}</span></span>
+    </button>
+    <div id="pop-custom-list" style="display:none;">${customRows}</div>` : '';
   showModal({
     title: 'Preferiti',
     subtitle: escapeHtml(c.etichetta),
@@ -276,13 +285,23 @@ function openPinSezioniPopup(cid) {
       ${homeRow}
       <div style="border-top:1px solid var(--rule-soft);margin:8px 0;padding-top:10px;font-size:12px;color:var(--ink-muted);">Oppure aggiungilo a una lista dei preferiti:</div>
       ${uocRow}
-      ${customRows}
+      ${customBlock}
       <div style="border-top:1px solid var(--rule-soft);margin-top:8px;padding-top:10px;">
         <button class="btn" style="width:100%;" onclick="createSezioneEPin('${escapeJs(cid)}')">+ Nuova sezione…</button>
       </div>`,
     actions: [{ label: 'Chiudi', variant: 'ghost', onClick: closeModal }]
   });
 }
+// Espande/collassa l'elenco delle liste personalizzate nel popup dei preferiti.
+function _togglePopCustomList(btn) {
+  const list = document.getElementById('pop-custom-list');
+  if (!list) return;
+  const open = list.style.display === 'none';
+  list.style.display = open ? 'block' : 'none';
+  const car = btn.querySelector('.pop-caret');
+  if (car) car.textContent = open ? '▾' : '▸';
+}
+
 // Toggle in-place dell'appartenenza a una sezione, aggiornando il pulsante senza riaprire la modale.
 function togglePinSezione(cid, sezId) {
   const isIn = userPrefs.toggleContattoInSezione(cid, sezId);
