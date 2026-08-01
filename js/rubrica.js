@@ -187,9 +187,12 @@ function renderCustomSezioniHtml(query) {
       });
     }).join('') || (q ? '' : '<div style="padding:8px 14px;font-size:12px;color:var(--ink-muted);font-style:italic;">Nessun contatto in questa sezione. Usa la ☆ su un contatto per aggiungerlo qui.</div>');
     if (q && !contattiHtml) return '';
-    return `<div class="fav-bucket fav-bucket-collapsed" data-cs-id="${escapeHtml(sez.id)}">
-      <button class="fav-bucket-header" onclick="toggleFavBucket(this)" aria-expanded="false">
-        <span class="fav-bucket-caret">&#9656;</span>
+    // Aperta se: c'è una ricerca con match (mostro i risultati) oppure l'utente l'aveva aperta
+    // (stato persistente, così un re-render dopo uno spostamento non la richiude).
+    const isOpen = (!!q && !!contattiHtml) || ((state.favBucketOpen instanceof Set) && state.favBucketOpen.has('cs:' + sez.id));
+    return `<div class="fav-bucket ${isOpen ? '' : 'fav-bucket-collapsed'}" data-cs-id="${escapeHtml(sez.id)}">
+      <button class="fav-bucket-header" onclick="toggleFavBucket(this)" aria-expanded="${isOpen ? 'true' : 'false'}">
+        <span class="fav-bucket-caret">${isOpen ? '▾' : '▸'}</span>
         <span class="sede-bucket-tipo">${escapeHtml(sez.nome)}</span>
         ${editMode ? `<span class="fav-bucket-edit" style="margin-left:auto;display:inline-flex;gap:6px;" onclick="event.stopPropagation();">
           <button class="btn-icon-mini" onclick="event.stopPropagation();moveCsSezione('${escapeJs(sez.id)}',-1)" title="Sposta sezione su" ${si === 0 ? 'disabled' : ''}>↑</button>
@@ -211,11 +214,24 @@ function renderCustomSezioniHtml(query) {
 // Handler globali per le sezioni personalizzate
 function moveCsSezione(id, dir) {
   userPrefs.moveCustomSezione(id, dir);
+  const y = window.scrollY;
   renderNumeri('pinned');
+  requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'instant' }));
 }
 function moveCsContatto(sezId, cid, dir) {
   userPrefs.moveContactInCustomSezione(sezId, cid, dir);
+  const y = window.scrollY;
   renderNumeri('pinned');
+  requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'instant' }));
+}
+// Ridisegna la vista numeri conservando lo scroll (usato dopo modifiche a contatti/tag,
+// per non saltare in cima come farebbe navigate). Le sezioni espanse restano tali
+// (stato in state.expandedSedi/collapsedSedi/favBucketOpen).
+function refreshNumeriKeepScroll() {
+  if (state.currentView !== 'numeri') return;
+  const y = window.scrollY;
+  renderNumeri((state.currentParams || {}).filter);
+  requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'instant' }));
 }
 function addCustomSezionePrompt() {
   const nome = prompt('Nome della nuova sezione personalizzata:\n(es. "PS", "Reperibili weekend")', '');
@@ -1446,7 +1462,7 @@ function renderContattiGroupedBox(items, opts = {}) {
             onDown: `movePrefUoc('${escapeJs(c.id)}',1)`
           } : null
         })).join('');
-    const isExpanded = !!opts.expanded;
+    const isExpanded = !!opts.expanded || ((state.favBucketOpen instanceof Set) && state.favBucketOpen.has('uoc:' + grp.gId));
     if (opts.clickableHeader) {
       // Vista home: niente collasso. UOC e sezione sono link separati (come nella ricerca
       // globale collassata): UOC → overview UOC; sezione → UOC con quella sezione espansa
@@ -1990,6 +2006,13 @@ function toggleFavBucket(btn) {
   const caret = btn.querySelector('.fav-bucket-caret');
   if (caret) caret.textContent = collapsed ? '\u25B8' : '\u25BE';
   btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  // Persisto lo stato aperto/chiuso cos\u00EC un re-render (es. dopo uno spostamento) non lo richiude.
+  const key = block.dataset.csId ? ('cs:' + block.dataset.csId)
+            : (block.dataset.uocId ? ('uoc:' + block.dataset.uocId) : null);
+  if (key) {
+    if (!(state.favBucketOpen instanceof Set)) state.favBucketOpen = new Set();
+    if (collapsed) state.favBucketOpen.delete(key); else state.favBucketOpen.add(key);
+  }
 }
 
 function toggleSedeBucket(gid, sedeKey, defaultOpen) {

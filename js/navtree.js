@@ -1562,7 +1562,7 @@ function openContattoEditor({ mode, gruppoId, contatto }) {
           if (state.showExtendedNumeri?.osa) await loadExtendedNumeri('osa');
           if (state.showExtendedNumeri?.iov) await loadExtendedNumeri('iov');
           renderNavTree();
-          if (state.currentView === 'numeri') navigate('numeri', state.currentParams || {});
+          refreshNumeriKeepScroll();
         } catch (e) { toast('Errore: ' + e.message, 'error'); }
       } }
     ]
@@ -1609,7 +1609,7 @@ async function deleteContatto(contattoId) {
     if (state.showExtendedNumeri?.osa) await loadExtendedNumeri('osa');
     if (state.showExtendedNumeri?.iov) await loadExtendedNumeri('iov');
     renderNavTree();
-    if (state.currentView === 'numeri') navigate('numeri', state.currentParams || {});
+    refreshNumeriKeepScroll();
   } catch (e) { toast('Errore: ' + e.message, 'error'); }
 }
 
@@ -2152,7 +2152,7 @@ function openGruppoEditor({ mode, gruppo, source }) {
           if (state.showExtendedNumeri?.osa) await loadExtendedNumeri('osa');
           if (state.showExtendedNumeri?.iov) await loadExtendedNumeri('iov');
           renderNavTree();
-          if (state.currentView === 'numeri') navigate('numeri', state.currentParams || {});
+          refreshNumeriKeepScroll();
         } catch (e) { toast('Errore: ' + e.message, 'error'); }
       } }
     ]
@@ -2184,7 +2184,7 @@ async function deleteGruppoNumeri(id) {
     if (state.showExtendedNumeri?.osa) await loadExtendedNumeri('osa');
     if (state.showExtendedNumeri?.iov) await loadExtendedNumeri('iov');
     renderNavTree();
-    if (state.currentView === 'numeri') navigate('numeri', state.currentParams || {});
+    refreshNumeriKeepScroll();
   } catch (e) { toast('Errore: ' + e.message, 'error'); }
 }
 
