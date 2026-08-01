@@ -263,23 +263,22 @@ async function _probeModuloPagine(slug) {
   return n;
 }
 
-// Compara box correnti con snapshot pristine; ritorna true se ci sono differenze
+// Compara box/campi correnti con lo snapshot pristine; ritorna true se ci sono differenze.
 function _boxesAreDirty(slug) {
   const c = state.moduliCache[slug];
-  if (!c || !c.pristineBoxes) return false;
-  // Baseline dei campi mancante (es. modulo ripristinato da sessionStorage, che in passato
-  // non salvava pristineCampi): la inizializzo alla situazione corrente, così l'aggiunta o la
-  // modifica di un campo viene poi rilevata come "non salvata" e compare il pulsante "Salva".
-  if (c.pristineCampi == null && c.boxesData) {
-    c.pristineCampi = JSON.parse(JSON.stringify(c.boxesData.campi_richiesti || []));
-  }
+  if (!c || !c.boxesData) return false;
+  // Baseline mancanti (moduli ripristinati da sessionStorage — che in passato non salvava
+  // pristineCampi — o con boxes appena caricati): le inizializzo alla situazione corrente, così
+  // le modifiche successive a box/campi vengono rilevate e compare il pulsante "Salva".
+  // Prima, se pristineBoxes era null, la funzione usciva subito senza controllare i campi:
+  // di conseguenza l'aggiunta di un campo non attivava "Salva" su quei moduli.
+  if (c.pristineBoxes == null) c.pristineBoxes = JSON.parse(JSON.stringify(c.boxesData.box || []));
+  if (c.pristineCampi == null) c.pristineCampi = JSON.parse(JSON.stringify(c.boxesData.campi_richiesti || []));
   const cur = c.boxesData.box || [];
   if (JSON.stringify(cur) !== JSON.stringify(c.pristineBoxes)) return true;
   // Anche le modifiche ai campi (aggiunta/rinomina/eliminazione) contano come non salvate.
-  if (c.pristineCampi != null) {
-    const curCampi = c.boxesData.campi_richiesti || [];
-    if (JSON.stringify(curCampi) !== JSON.stringify(c.pristineCampi)) return true;
-  }
+  const curCampi = c.boxesData.campi_richiesti || [];
+  if (JSON.stringify(curCampi) !== JSON.stringify(c.pristineCampi)) return true;
   return false;
 }
 
