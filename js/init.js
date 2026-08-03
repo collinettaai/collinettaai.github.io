@@ -121,6 +121,7 @@ function initMobileDrawer() {
     return null;
   };
   const OPEN_THRESHOLD = 60;       // px di swipe orizzontale per aprire sidebar
+  const MODULO_EDGE = 24;          // in editMode moduli: apri sidebar solo dal bordo sx stretto
   const VERT_TOLERANCE = 40;       // px max verticale tollerato per swipe orizz.
   const PULL_DOWN_THRESHOLD = 90;  // px di pull-down per attivare focus search
   const HORIZ_TOLERANCE = 40;      // px max orizzontale tollerato per pull-down
@@ -173,7 +174,9 @@ function initMobileDrawer() {
       x: t.clientX, y: t.clientY,
       sidebarOpen,
       scrollableX,
-      canOpen: !sidebarOpen && !searchOverlayOpen && !modalOpen && !moduloEditMode && !keyboardOpen && t.clientX <= edgeZone,
+      // In editMode moduli lo swipe apri-sidebar resta attivo ma solo da un bordo sinistro STRETTO
+      // (MODULO_EDGE), così non confligge col trascinamento dei box (che avviene più internamente).
+      canOpen: !sidebarOpen && !searchOverlayOpen && !modalOpen && !keyboardOpen && t.clientX <= (moduloEditMode ? MODULO_EDGE : edgeZone),
       canClose: sidebarOpen,
       canPulldown: !sidebarOpen && !modalOpen && !moduloEditMode && !keyboardOpen && (pageAtTop || overlayAtTop),
       searchOverlayOpen,
