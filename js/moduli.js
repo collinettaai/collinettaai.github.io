@@ -1095,6 +1095,16 @@ function _renderModuloEditorPanel(slug, det) {
         </div>
         ${!isFirma ? `
           <div class="mod-field-group">
+            <label class="mod-field-label">Distanza lettere</label>
+            <div class="mod-fontsize-stepper">
+              <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLetterSpacing('${escapeJs(slug)}',${selIdx},-0.05)" aria-label="Riduci distanza lettere">−</button>
+              <input type="text" inputmode="decimal" class="mod-input mod-fs-input mod-lh-input" value="${selBox.letter_spacing || 0}"
+                     oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'letter_spacing',Math.min(3,Math.max(0,parseFloat(this.value)||0)))">
+              <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLetterSpacing('${escapeJs(slug)}',${selIdx},+0.05)" aria-label="Aumenta distanza lettere">+</button>
+            </div>
+            <p style="margin:4px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">Spazio extra tra i caratteri (in em). Utile per campi con celle per lettera/numero.</p>
+          </div>
+          <div class="mod-field-group">
             <label class="mod-field-label">Testo</label>
             <div class="mod-segmented">
               <button class="mod-seg ${!selBox.multiline ? 'active' : ''}" onclick="setBoxMultiline('${escapeJs(slug)}',${selIdx},false)">Una riga</button>
@@ -1154,7 +1164,7 @@ function _renderModuloEditorPanel(slug, det) {
       <p style="margin:6px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">Inserendo/rimuovendo pagine i box scorrono con le rispettive pagine; quelli della pagina rimossa vengono eliminati. Operazione salvata subito sul repo.</p>
     </div>
     <div class="mod-edit-section">
-      <div class="mod-edit-section-title">Campi del modulo (${campiDefs.length})</div>
+      <div class="mod-edit-section-title">Campi della pagina (${campiDefs.length})</div>
       <div class="mod-campi-list">
         ${campiDefs.length ? campiDefs.map(cd => `
           <div class="mod-campo-item">
@@ -1412,6 +1422,18 @@ function changeBoxLines(slug, idx, delta) {
   const box = c.boxesData.box[idx];
   const cur = box.lines || 2;
   box.lines = Math.min(30, Math.max(1, Math.round(cur + delta)));
+  _persistModulo(slug);
+  refreshModuloOverlays(slug);
+  _refreshModuloEditorPanelLight(slug);
+}
+
+// Incrementa/decrementa la distanza tra le lettere (em) del box. Step 0.05, range 0–3.
+function changeBoxLetterSpacing(slug, idx, delta) {
+  const c = state.moduliCache[slug];
+  if (!c || !c.boxesData.box || !c.boxesData.box[idx]) return;
+  const box = c.boxesData.box[idx];
+  const cur = box.letter_spacing || 0;
+  box.letter_spacing = Math.min(3, Math.max(0, Math.round((cur + delta) * 100) / 100));
   _persistModulo(slug);
   refreshModuloOverlays(slug);
   _refreshModuloEditorPanelLight(slug);
@@ -1913,13 +1935,16 @@ function refreshModuloOverlays(slug) {
       : '';
     // N righe fisse: testo allineato in alto (riempie le righe dall'alto, coerente con guide e stampa).
     const topAlign = (b.multiline && nLines) ? 'align-items:flex-start;' : '';
+    // Distanza lettere (em): spazio extra tra i caratteri, per campi con celle per lettera/numero.
+    const ls = parseFloat(b.letter_spacing) || 0;
+    const lsStyle = ls > 0 ? `letter-spacing:${ls}em;` : '';
     const handles = isSelected ? `
       <span class="mod-handle mod-handle-resize" data-handle="tr" title="Trascina per ridimensionare">⤢</span>
     ` : '';
     return `<div class="mod-box ${isEmpty ? 'empty' : ''} ${placeholder ? 'placeholder' : ''} ${isFirma ? 'firma' : ''} ${b.multiline ? 'multiline' : ''} ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''} ${align === 'center' ? 'align-center' : align === 'right' ? 'align-right' : ''}"
-              data-box-idx="${i}" data-font-pct="${fontSizePct}"${b.multiline ? ` data-multiline="1" data-line-height="${b.line_height || 1.2}" data-lines="${nLines}"` : ''}
+              data-box-idx="${i}" data-font-pct="${fontSizePct}" data-letter-spacing="${ls}"${b.multiline ? ` data-multiline="1" data-line-height="${b.line_height || 1.2}" data-lines="${nLines}"` : ''}
               style="left:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%;
-                     text-align:${align};${topAlign}${lineGuides}"
+                     text-align:${align};${topAlign}${lsStyle}${lineGuides}"
               title="${escapeHtml(b.campo || b.label || '')}"><span class="mod-box-text">${escapeHtml(display)}</span>${handles}</div>`;
   }).join('');
 
@@ -1960,6 +1985,7 @@ function _autoFitBoxFont(boxEl) {
   const pageH = pageImg && pageImg.clientHeight > 0 ? pageImg.clientHeight : (layer ? layer.clientHeight : 0);
   const fontPct = parseFloat(boxEl.dataset.fontPct) || 2.0;
   const baseSize = pageH > 0 ? (fontPct / 100) * pageH : 11;
+  const ls = parseFloat(boxEl.dataset.letterSpacing) || 0;  // distanza lettere in em
   const MIN_SIZE = 6;
   const cs = getComputedStyle(boxEl);
   const padL = parseFloat(cs.paddingLeft) || 0;
@@ -1979,19 +2005,21 @@ function _autoFitBoxFont(boxEl) {
     const lineHeight = parseFloat(boxEl.dataset.lineHeight) || 1.2;
     const targetLines = parseInt(boxEl.dataset.lines, 10) || 0;
     const buildFont = s => `${style} ${weight} ${s}px ${fam}`;
-    const { size, lines } = _fitMultilineFont(ctx, text, availW, availH, baseSize, MIN_SIZE, lineHeight, buildFont, targetLines);
+    const { size, lines } = _fitMultilineFont(ctx, text, availW, availH, baseSize, MIN_SIZE, lineHeight, buildFont, targetLines, ls);
     boxEl.style.fontSize = size + 'px';
     boxEl.style.lineHeight = String(lineHeight);
     textEl.textContent = lines.join('\n');
     return;
   }
   ctx.font = `${style} ${weight} ${baseSize}px ${fam}`;
+  try { ctx.letterSpacing = (ls * baseSize) + 'px'; } catch (e) {}
   const measuredW = ctx.measureText(text).width;
   let size = baseSize;
   if (measuredW > availW) size = baseSize * (availW / measuredW);
   if (size > availH) size = availH;
   if (size < MIN_SIZE) size = MIN_SIZE;
   boxEl.style.fontSize = size + 'px';
+  try { ctx.letterSpacing = '0px'; } catch (e) {}  // reset (ctx condiviso)
 }
 
 // Divide `text` in righe rispettando gli a-capo espliciti (\n) e mandando a capo le parole che
@@ -2025,27 +2053,33 @@ function _wrapBoxLines(ctx, text, maxWidth) {
 // così N righe riempiono esattamente il box e scalano con esso (il testo non si taglia se il box
 // viene ridotto: rimpicciolisce). Il testo va comunque a capo su availW; l'eventuale eccedenza
 // oltre le N righe viene clippata dal box (l'utente sceglie N per il contenuto atteso).
-function _fitMultilineFont(ctx, text, availW, availH, baseSize, minSize, lineHeight, buildFont, targetLines) {
+function _fitMultilineFont(ctx, text, availW, availH, baseSize, minSize, lineHeight, buildFont, targetLines, ls) {
+  ls = ls || 0;  // distanza lettere in em
+  const setLS = s => { try { ctx.letterSpacing = (ls * s) + 'px'; } catch (e) {} };
   if (targetLines && targetLines > 0) {
     let size = availH / (targetLines * (lineHeight || 1.2));
     if (!(size > 0)) size = minSize;
     size = Math.max(minSize, size);
     ctx.font = buildFont(size);
+    setLS(size);
     const lines = _wrapBoxLines(ctx, text, availW);
+    setLS(0);
     return { size, lines };
   }
   let size = baseSize;
   let lines = [];
   for (let i = 0; i < 100; i++) {
     ctx.font = buildFont(size);
+    setLS(size);
     lines = _wrapBoxLines(ctx, text, availW);
     const totalH = lines.length * size * lineHeight;
     let maxW = 0;
     for (const ln of lines) { const w = ctx.measureText(ln).width; if (w > maxW) maxW = w; }
     if (totalH <= availH && maxW <= availW) break;
-    if (size <= minSize) { size = minSize; ctx.font = buildFont(size); lines = _wrapBoxLines(ctx, text, availW); break; }
+    if (size <= minSize) { size = minSize; ctx.font = buildFont(size); setLS(size); lines = _wrapBoxLines(ctx, text, availW); break; }
     size = Math.max(minSize, size * 0.94);
   }
+  setLS(0);  // reset (ctx condiviso con altre misure)
   return { size, lines };
 }
 
@@ -2430,9 +2464,11 @@ async function _renderModuloPaginaSuCanvas(slug, pageIndex /* 1-based */) {
       // Testo su più righe: stesso wrapping dell'editor (righe identiche in preview e stampa).
       const lineHeight = b.line_height || 1.2;
       const targetLines = b.lines || 0;
+      const ls = b.letter_spacing || 0;  // distanza lettere in em
       const buildFont = s => `${s}px ${fontFamily}`;
-      const { size, lines } = _fitMultilineFont(ctx, value, availW, availH, baseSize, MIN_SIZE_PX, lineHeight, buildFont, targetLines);
+      const { size, lines } = _fitMultilineFont(ctx, value, availW, availH, baseSize, MIN_SIZE_PX, lineHeight, buildFont, targetLines, ls);
       ctx.font = buildFont(size);
+      try { ctx.letterSpacing = (ls * size) + 'px'; } catch (e) {}
       const totalH = lines.length * size * lineHeight;
       // N righe fisse → allineo in alto (il testo riempie le righe dall'alto). Auto-fit → centrato.
       let startY = targetLines ? y : y + (availH - totalH) / 2;
@@ -2441,13 +2477,16 @@ async function _renderModuloPaginaSuCanvas(slug, pageIndex /* 1-based */) {
         ctx.fillText(lines[li], drawX, startY + li * size * lineHeight);
       }
     } else {
+      const ls = b.letter_spacing || 0;  // distanza lettere in em
       let fontSize = baseSize;
       ctx.font = `${fontSize}px ${fontFamily}`;
+      try { ctx.letterSpacing = (ls * fontSize) + 'px'; } catch (e) {}
       const measuredW = ctx.measureText(value).width;
       if (measuredW > availW) fontSize = fontSize * (availW / measuredW);
       if (fontSize > availH) fontSize = availH;
       if (fontSize < MIN_SIZE_PX) fontSize = MIN_SIZE_PX;
       ctx.font = `${fontSize}px ${fontFamily}`;
+      try { ctx.letterSpacing = (ls * fontSize) + 'px'; } catch (e) {}
       const drawY = y + (h - fontSize) / 2;  // centratura verticale
       ctx.fillText(value, drawX, drawY);
     }
