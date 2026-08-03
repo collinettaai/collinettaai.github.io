@@ -124,6 +124,12 @@ function initMobileDrawer() {
   const VERT_TOLERANCE = 40;       // px max verticale tollerato per swipe orizz.
   const PULL_DOWN_THRESHOLD = 90;  // px di pull-down per attivare focus search
   const HORIZ_TOLERANCE = 40;      // px max orizzontale tollerato per pull-down
+  // iOS/WebKit riservano lo swipe dal bordo sinistro ESTREMO alla navigazione "indietro" nativa.
+  // Escludo quella striscia dalla gesture apri-sidebar, così tornare indietro non apre la sidebar.
+  const IS_IOS = /iP(hone|od|ad)/.test(navigator.platform || '') ||
+                 /iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
+                 (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent || ''));
+  const IOS_BACK_EDGE = 30;        // px dal bordo sinistro riservati al back nativo iOS
   document.addEventListener('touchstart', (e) => {
     if (!isMobileViewport()) return;
     // Splash di boot ancora visibile: ignoro i gesti (swipe sidebar / pull-down ricerca).
@@ -178,7 +184,10 @@ function initMobileDrawer() {
       scrollableX,
       // In editMode moduli lo swipe apri-sidebar resta attivo OVUNQUE tranne che sull'area dei box
       // del modulo (.mod-page-scroll), dove lo swipe serve a trascinare i box.
-      canOpen: !sidebarOpen && !searchOverlayOpen && !modalOpen && !keyboardOpen && !inModuloBoxArea && t.clientX <= edgeZone,
+      // Su iOS il bordo sinistro estremo (< IOS_BACK_EDGE) è riservato al back nativo: lì la
+      // sidebar NON si apre, così i due gesti non si sovrappongono.
+      canOpen: !sidebarOpen && !searchOverlayOpen && !modalOpen && !keyboardOpen && !inModuloBoxArea
+               && t.clientX <= edgeZone && (!IS_IOS || t.clientX >= IOS_BACK_EDGE),
       canClose: sidebarOpen,
       canPulldown: !sidebarOpen && !modalOpen && !moduloEditMode && !keyboardOpen && (pageAtTop || overlayAtTop),
       searchOverlayOpen,
