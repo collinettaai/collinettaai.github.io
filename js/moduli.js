@@ -1739,11 +1739,11 @@ function _renderModuloPaginatedPreview(slug, det) {
     ${navHtml}
     ${zoomToolbar}
     <div class="mod-page-scroll" id="mod-page-scroll-${escapeHtml(slug)}">
-      <div class="mod-page-stage" id="mod-page-stage-${escapeHtml(slug)}" style="width:${zoom * 100}%;">
+      <div class="mod-page-stage" id="mod-page-stage-${escapeHtml(slug)}" style="position:relative;width:${zoom * 100}%;">
         <img class="mod-page-img" src="${displayUrls[cur - 1]}" alt="Pagina ${cur}"
              onload="onModuloPageImgLoad('${escapeJs(slug)}', this)"
              onerror="this.parentElement.innerHTML='<div style=padding:32px;text-align:center;color:var(--ink-muted);font-style:italic;>Pagina ${cur} non trovata. Verifica che <code>content/moduli/${escapeJs(slug)}/page-${cur}.png</code> sia caricato nel repo.</div>'">
-        <div class="mod-overlay-layer" id="mod-overlay-${escapeHtml(slug)}"></div>
+        <div class="mod-overlay-layer" id="mod-overlay-${escapeHtml(slug)}" style="position:absolute;left:0;top:0;width:100%;height:100%;"></div>
       </div>
     </div>`;
 }
