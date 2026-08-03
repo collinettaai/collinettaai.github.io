@@ -1103,6 +1103,16 @@ function _renderModuloEditorPanel(slug, det) {
           </div>
           ${selBox.multiline ? `
             <div class="mod-field-group">
+              <label class="mod-field-label">Numero di righe</label>
+              <div class="mod-fontsize-stepper">
+                <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLines('${escapeJs(slug)}',${selIdx},-1)" aria-label="Meno righe">−</button>
+                <input type="text" inputmode="numeric" class="mod-input mod-fs-input mod-lh-input" value="${selBox.lines || 2}"
+                       oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'lines',Math.min(30,Math.max(1,Math.round(parseFloat(this.value)||2))))">
+                <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLines('${escapeJs(slug)}',${selIdx},+1)" aria-label="Più righe">+</button>
+              </div>
+              <p style="margin:4px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">In modifica vedi le righe come guide: dimensiona il box così che il testo ci stia senza tagliarsi.</p>
+            </div>
+            <div class="mod-field-group">
               <label class="mod-field-label">Interlinea (distanza tra le righe)</label>
               <div class="mod-fontsize-stepper">
                 <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLineHeight('${escapeJs(slug)}',${selIdx},-0.1)" aria-label="Riduci interlinea">−</button>
@@ -1388,8 +1398,20 @@ function setBoxMultiline(slug, idx, val) {
   const c = state.moduliCache[slug];
   if (!c || !c.boxesData.box || !c.boxesData.box[idx]) return;
   const box = c.boxesData.box[idx];
-  if (val) { box.multiline = true; if (box.line_height == null) box.line_height = 1.2; }
-  else { delete box.multiline; delete box.line_height; }
+  if (val) { box.multiline = true; if (box.line_height == null) box.line_height = 1.2; if (box.lines == null) box.lines = 2; }
+  else { delete box.multiline; delete box.line_height; delete box.lines; }
+  _persistModulo(slug);
+  refreshModuloOverlays(slug);
+  _refreshModuloEditorPanelLight(slug);
+}
+
+// Incrementa/decrementa il numero di righe del box (solo box multi-riga). Step 1, range 1–30.
+function changeBoxLines(slug, idx, delta) {
+  const c = state.moduliCache[slug];
+  if (!c || !c.boxesData.box || !c.boxesData.box[idx]) return;
+  const box = c.boxesData.box[idx];
+  const cur = box.lines || 2;
+  box.lines = Math.min(30, Math.max(1, Math.round(cur + delta)));
   _persistModulo(slug);
   refreshModuloOverlays(slug);
   _refreshModuloEditorPanelLight(slug);
@@ -1883,13 +1905,21 @@ function refreshModuloOverlays(slug) {
     const align = b.align || 'left';
     const fontSizePct = b.font_size || 2.0;  // % dell'altezza della pagina (universale)
     const isSelected = editMode && i === selIdx;
+    const nLines = b.multiline ? Math.max(1, Math.min(30, Math.round(b.lines || 2))) : 0;
+    // Guide righe (solo in modifica, box multi-riga con ≥2 righe): linee orizzontali a ogni 1/N
+    // dell'altezza, così si vede come sono disposte le righe e si dimensiona il box di conseguenza.
+    const lineGuides = (editMode && b.multiline && nLines > 1)
+      ? `background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(100%/${nLines} - 1px),rgba(24,95,165,.35) calc(100%/${nLines} - 1px),rgba(24,95,165,.35) calc(100%/${nLines}));`
+      : '';
+    // N righe fisse: testo allineato in alto (riempie le righe dall'alto, coerente con guide e stampa).
+    const topAlign = (b.multiline && nLines) ? 'align-items:flex-start;' : '';
     const handles = isSelected ? `
       <span class="mod-handle mod-handle-resize" data-handle="tr" title="Trascina per ridimensionare">⤢</span>
     ` : '';
     return `<div class="mod-box ${isEmpty ? 'empty' : ''} ${placeholder ? 'placeholder' : ''} ${isFirma ? 'firma' : ''} ${b.multiline ? 'multiline' : ''} ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''} ${align === 'center' ? 'align-center' : align === 'right' ? 'align-right' : ''}"
-              data-box-idx="${i}" data-font-pct="${fontSizePct}"${b.multiline ? ` data-multiline="1" data-line-height="${b.line_height || 1.2}"` : ''}
+              data-box-idx="${i}" data-font-pct="${fontSizePct}"${b.multiline ? ` data-multiline="1" data-line-height="${b.line_height || 1.2}" data-lines="${nLines}"` : ''}
               style="left:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%;
-                     text-align:${align};"
+                     text-align:${align};${topAlign}${lineGuides}"
               title="${escapeHtml(b.campo || b.label || '')}"><span class="mod-box-text">${escapeHtml(display)}</span>${handles}</div>`;
   }).join('');
 
@@ -1947,8 +1977,9 @@ function _autoFitBoxFont(boxEl) {
   // ESATTAMENTE le stesse righe della stampa, che usa lo stesso algoritmo di wrapping).
   if (boxEl.dataset.multiline === '1') {
     const lineHeight = parseFloat(boxEl.dataset.lineHeight) || 1.2;
+    const targetLines = parseInt(boxEl.dataset.lines, 10) || 0;
     const buildFont = s => `${style} ${weight} ${s}px ${fam}`;
-    const { size, lines } = _fitMultilineFont(ctx, text, availW, availH, baseSize, MIN_SIZE, lineHeight, buildFont);
+    const { size, lines } = _fitMultilineFont(ctx, text, availW, availH, baseSize, MIN_SIZE, lineHeight, buildFont, targetLines);
     boxEl.style.fontSize = size + 'px';
     boxEl.style.lineHeight = String(lineHeight);
     textEl.textContent = lines.join('\n');
@@ -1990,7 +2021,19 @@ function _wrapBoxLines(ctx, text, maxWidth) {
 // Trova la dimensione font massima (partendo da baseSize, min minSize) per cui il testo, mandato
 // a capo su maxWidth=availW con interlinea lineHeight, entra in availW×availH. Ritorna {size, lines}.
 // buildFont(size) → stringa font completa per ctx.
-function _fitMultilineFont(ctx, text, availW, availH, baseSize, minSize, lineHeight, buildFont) {
+// Se targetLines è impostato (box a "N righe fisse"): il font deriva dall'altezza / N / interlinea,
+// così N righe riempiono esattamente il box e scalano con esso (il testo non si taglia se il box
+// viene ridotto: rimpicciolisce). Il testo va comunque a capo su availW; l'eventuale eccedenza
+// oltre le N righe viene clippata dal box (l'utente sceglie N per il contenuto atteso).
+function _fitMultilineFont(ctx, text, availW, availH, baseSize, minSize, lineHeight, buildFont, targetLines) {
+  if (targetLines && targetLines > 0) {
+    let size = availH / (targetLines * (lineHeight || 1.2));
+    if (!(size > 0)) size = minSize;
+    size = Math.max(minSize, size);
+    ctx.font = buildFont(size);
+    const lines = _wrapBoxLines(ctx, text, availW);
+    return { size, lines };
+  }
   let size = baseSize;
   let lines = [];
   for (let i = 0; i < 100; i++) {
@@ -2386,11 +2429,13 @@ async function _renderModuloPaginaSuCanvas(slug, pageIndex /* 1-based */) {
     if (b.multiline) {
       // Testo su più righe: stesso wrapping dell'editor (righe identiche in preview e stampa).
       const lineHeight = b.line_height || 1.2;
+      const targetLines = b.lines || 0;
       const buildFont = s => `${s}px ${fontFamily}`;
-      const { size, lines } = _fitMultilineFont(ctx, value, availW, availH, baseSize, MIN_SIZE_PX, lineHeight, buildFont);
+      const { size, lines } = _fitMultilineFont(ctx, value, availW, availH, baseSize, MIN_SIZE_PX, lineHeight, buildFont, targetLines);
       ctx.font = buildFont(size);
       const totalH = lines.length * size * lineHeight;
-      let startY = y + (availH - totalH) / 2;
+      // N righe fisse → allineo in alto (il testo riempie le righe dall'alto). Auto-fit → centrato.
+      let startY = targetLines ? y : y + (availH - totalH) / 2;
       if (startY < y) startY = y;  // blocco di testo più alto del box → parti dal bordo (verrà clippato)
       for (let li = 0; li < lines.length; li++) {
         ctx.fillText(lines[li], drawX, startY + li * size * lineHeight);
