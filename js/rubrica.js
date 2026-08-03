@@ -152,9 +152,9 @@ function renderCustomSezioniHtml(query) {
   const qn = norm(q);
   const sezioni = userPrefs.getCustomSezioni();
   // I preferiti sono dati PERSONALI: la loro gestione (riordina/rinomina/elimina sezioni,
-  // riordina contatti, nuova sezione) è disponibile a prescindere dal permesso di modifica
-  // sulla rubrica, sia via edit-mode globale sia via toggle dedicato state.favEditMode.
-  const editMode = (navState.editMode || state.favEditMode) && !q;   // in ricerca niente controlli
+  // riordina contatti, nuova sezione) è disponibile in Modalità modifica globale a prescindere
+  // dal permesso di modifica sulla rubrica (le azioni sottostanti non hanno gate permessi).
+  const editMode = navState.editMode && !q;   // durante la ricerca niente controlli di modifica
   const blocks = sezioni.map((sez, si) => {
     const nameMatches = !!q && norm(sez.nome).includes(qn);
     let cids = (sez.contatti || []);
@@ -210,22 +210,8 @@ function renderCustomSezioniHtml(query) {
   const addSezBtn = editMode
     ? `<div style="margin:8px 0 16px;"><button class="btn ghost" style="font-size:13px;" onclick="addCustomSezionePrompt()">+ Nuova sezione personalizzata</button></div>`
     : '';
-  // Toggle dedicato "Gestisci sezioni" — sempre disponibile nei preferiti (dati personali),
-  // senza dover entrare nella Modalità modifica globale. Nascosto durante la ricerca o se la
-  // edit-mode globale è già attiva (i controlli ci sono già).
-  const manageToggle = (!q && !navState.editMode)
-    ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px;"><button class="btn ghost" style="font-size:12px;" onclick="toggleFavEditMode()">${state.favEditMode ? '✓ Fine' : '✎ Gestisci sezioni'}</button></div>`
-    : '';
-  if (!blocks && !addSezBtn && !manageToggle) return '';
-  return `<div class="custom-sezioni-wrap" style="margin-bottom:20px;">${manageToggle}${blocks}${addSezBtn}</div>`;
-}
-
-// Attiva/disattiva la gestione delle sezioni preferite (personale, nessun permesso richiesto).
-function toggleFavEditMode() {
-  state.favEditMode = !state.favEditMode;
-  const y = window.scrollY;
-  renderNumeri('pinned');
-  requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'instant' }));
+  if (!blocks && !addSezBtn) return '';
+  return `<div class="custom-sezioni-wrap" style="margin-bottom:20px;">${blocks}${addSezBtn}</div>`;
 }
 
 // Handler globali per le sezioni personalizzate
