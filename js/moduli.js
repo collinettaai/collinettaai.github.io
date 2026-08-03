@@ -1840,9 +1840,15 @@ function refreshModuloOverlays(slug) {
   const img = stage.querySelector('img.mod-page-img');
   if (!img || !img.complete || !img.naturalWidth) return;
 
-  // Allinea il layer alle dimensioni RENDERIZZATE dell'immagine
-  layer.style.width = img.clientWidth + 'px';
-  layer.style.height = img.clientHeight + 'px';
+  // L'overlay si allinea all'immagine tramite CSS (stage position:relative + overlay
+  // position:absolute; inset:0; width/height:100%): lo stage si dimensiona sull'immagine, quindi
+  // le percentuali dei box combaciano sempre. NON misuro più img.clientWidth/Height in px: al
+  // primo render (box vuoti, subito dopo il load) la misura poteva essere letta prima che il
+  // layout dell'immagine fosse completo → overlay troppo alto → box giganti finché non si
+  // ri-renderizzava (es. scrivendo in un campo). Forzo 100% inline (robusto anche se il CSS
+  // .mod-overlay-layer arrivasse disallineato dalla cache): l'overlay copre esattamente lo stage.
+  layer.style.width = '100%';
+  layer.style.height = '100%';
 
   const editMode = !!c.editMode;
   const selIdx = c.selectedBoxIdx;
