@@ -73,6 +73,10 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
+<!-- Versione build dell'HTML/CSS: DEVE combaciare con APP_JS_BUILD in js/costanti.js.
+     Bumpare ENTRAMBE a ogni deploy che cambia CSS/HTML inline, così un disallineamento di
+     cache (index.html vecchio + JS nuovi) viene rilevato e l'app si ricarica una volta sola. -->
+<script>window.__APP_HTML_BUILD='2';</script>
 <script src="js/costanti.js"></script>
 <script src="js/permessi.js"></script>
 <script src="js/richieste.js"></script>

@@ -418,8 +418,10 @@ resta codice inline dopo il segmento B: i due segmenti "core" A (CONFIG →
 VIEW HOME) e B (VISTE LISTA PROCEDURE) restano inline intenzionalmente. Un
 eventuale split ulteriore del core non è previsto.
 
-Baseline `check.js` attuale (dopo `js/richieste.js`): `tag 23  parsati 3
-saltati 20  errori 0`.
+Baseline `check.js` attuale: `tag 24  parsati 4 saltati 20  errori 0` (il quarto
+script inline parsato è il marcatore `window.__APP_HTML_BUILD` prima di
+`js/costanti.js`, guardia anti-cache-disallineata; vedi `APP_JS_BUILD` in
+`js/costanti.js`).
 
 ---
 
