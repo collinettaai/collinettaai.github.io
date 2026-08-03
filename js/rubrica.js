@@ -964,8 +964,12 @@ function renderNumeri(filter, targetContainer) {
                 // In modalità isCollapsedSearch (match per contatto/sezione): SEMPRE aperto, NIENTE toggle.
                 const isOpen = isCollapsedSearch ? true : (defaultOpen ? !collapsed.has(b.sedeKey) : expanded.has(b.sedeKey));
                 // Badge "MdG" a destra del titolo sezione se il bucket contiene un medico di guardia.
+                // Stili INLINE (non solo classe .sede-bucket-mdg): il CSS della classe è inline in
+                // index.html mentre questo markup è in rubrica.js; se la cache serve un index.html
+                // vecchio col rubrica.js nuovo, la classe non c'è e il badge usciva senza stile.
+                // Inline con variabili theme-aware (--danger/--danger-soft) → sempre pillola rossa.
                 const mdgBadge = bucketHasGuardia(b)
-                  ? '<span class="sede-bucket-mdg" title="Presente medico di guardia">MdG</span>'
+                  ? '<span class="sede-bucket-mdg" title="Presente medico di guardia" style="margin-left:auto;align-self:center;flex-shrink:0;display:inline-flex;align-items:center;padding:1px 7px;border-radius:10px;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.03em;line-height:1.5;text-transform:none;background:var(--danger-soft);color:var(--danger);border:1px solid var(--danger);">MdG</span>'
                   : '';
                 // Header del bucket: in modalità collassata mostra "UOC ridotta · Sezione" senza caret/toggle
                 let bucketHeaderHtml;
