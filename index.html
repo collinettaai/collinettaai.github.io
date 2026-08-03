@@ -76,10 +76,10 @@
 <!-- Versione build dell'HTML/CSS: DEVE combaciare con APP_JS_BUILD in js/costanti.js.
      Bumpare ENTRAMBE a ogni deploy che cambia CSS/HTML inline, così un disallineamento di
      cache (index.html vecchio + JS nuovi) viene rilevato e l'app si ricarica una volta sola. -->
-<script>window.__APP_HTML_BUILD='3';</script>
-<script src="js/costanti.js?v=3"></script>
-<script src="js/permessi.js?v=3"></script>
-<script src="js/richieste.js?v=3"></script>
+<script>window.__APP_HTML_BUILD='4';</script>
+<script src="js/costanti.js?v=4"></script>
+<script src="js/permessi.js?v=4"></script>
+<script src="js/richieste.js?v=4"></script>
 <!-- Le seguenti librerie sono caricate lazy on-demand via _ensureLib():
      - jsPDF (~360 KB): solo al click "Scarica PDF" su moduli compilati
      - PDF.js (~370 KB): solo all'apertura del wizard "Nuovo modulo" da PDF
@@ -880,12 +880,17 @@ body.is-dragging-modulo-box{touch-action:none;overscroll-behavior:none;user-sele
 .mod-box.multiline .mod-box-text{display:block;white-space:pre;width:100%;height:auto;max-height:100%;overflow:hidden;text-align:left}
 .mod-box.multiline.align-center .mod-box-text{text-align:center}
 .mod-box.multiline.align-right .mod-box-text{text-align:right}
-.mod-box.empty{background:rgba(0,0,0,.04);outline:1px dashed rgba(0,0,0,.25);color:rgba(0,0,0,.3);font-style:italic}
+/* NB: le classi si chiamano "mod-vuoto"/"mod-segnaposto" e NON "empty"/"placeholder" di
+   proposito. La generica `.empty{padding:60px 20px;...}` (stato vuoto delle pagine, più sotto)
+   ha la stessa specificità di `.mod-box` ma viene dopo nel foglio: il suo padding verticale
+   120px vinceva su `padding:0 2px` e, con box-sizing:border-box, faceva da pavimento
+   all'altezza dei box vuoti (120px fissi, height % ignorata). Non rinominare indietro. */
+.mod-box.mod-vuoto{background:rgba(0,0,0,.04);outline:1px dashed rgba(0,0,0,.25);color:rgba(0,0,0,.3);font-style:italic}
 /* Box con placeholder esemplificativo (in editMode quando non ha ancora valore reale).
    Stile: testo nero come il testo reale (massima leggibilità) ma background giallo chiaro
    come empty per distinguere visivamente "spazio riservato per dati". Identica struttura del
    box firma → niente scivolamento durante resize. */
-.mod-box.placeholder{background:rgba(255,255,200,.4);outline:1px dashed rgba(180,140,0,.5);color:#000}
+.mod-box.mod-segnaposto{background:rgba(255,255,200,.4);outline:1px dashed rgba(180,140,0,.5);color:#000}
 .mod-box.firma{background:rgba(180,180,255,.15);outline:1px dashed rgba(80,80,160,.4);color:rgba(60,60,120,.6);font-style:italic;justify-content:center}
 .mod-form-actions .btn{padding:6px 12px;font-size:13px}
 
@@ -2060,7 +2065,7 @@ function ensureLetterAI() {
   _letterAiLoading = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     // Path relativo: il file sta accanto a index.html nella repo pubblica (GitHub Pages).
-    script.src = 'letteraai-module.js?v=3';
+    script.src = 'letteraai-module.js?v=4';
     script.onload = () => {
       if (window.Lettere) resolve(window.Lettere);
       else reject(new Error('letteraai-module.js caricato ma window.Lettere non definito'));
@@ -5861,7 +5866,7 @@ function renderProcedureCard(p) {
   return renderSchedaCard(p, 'procedura');
 }
 </script>
-<script src="js/reparto.js?v=3"></script>
+<script src="js/reparto.js?v=4"></script>
 <script>
 
 function renderProcedureList() {
@@ -5991,18 +5996,18 @@ function renderProcedureByCategoria(cat, subFilter) {
     }`;
 }
 </script>
-<script src="js/schede.js?v=3"></script>
-<script src="js/rubrica.js?v=3"></script>
-<script src="js/moduli.js?v=3"></script>
-<script src="js/calendario.js?v=3"></script>
-<script src="js/cestino.js?v=3"></script>
-<script src="js/admin.js?v=3"></script>
-<script src="js/navtree.js?v=3"></script>
-<script src="js/search.js?v=3"></script>
-<script src="js/modal.js?v=3"></script>
-<script src="js/init.js?v=3"></script>
+<script src="js/schede.js?v=4"></script>
+<script src="js/rubrica.js?v=4"></script>
+<script src="js/moduli.js?v=4"></script>
+<script src="js/calendario.js?v=4"></script>
+<script src="js/cestino.js?v=4"></script>
+<script src="js/admin.js?v=4"></script>
+<script src="js/navtree.js?v=4"></script>
+<script src="js/search.js?v=4"></script>
+<script src="js/modal.js?v=4"></script>
+<script src="js/init.js?v=4"></script>
 
-<script src="js/splash.js?v=3"></script>
+<script src="js/splash.js?v=4"></script>
 
 
 

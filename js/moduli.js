@@ -1941,7 +1941,7 @@ function refreshModuloOverlays(slug) {
     const handles = isSelected ? `
       <span class="mod-handle mod-handle-resize" data-handle="tr" title="Trascina per ridimensionare">⤢</span>
     ` : '';
-    return `<div class="mod-box ${isEmpty ? 'empty' : ''} ${placeholder ? 'placeholder' : ''} ${isFirma ? 'firma' : ''} ${b.multiline ? 'multiline' : ''} ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''} ${align === 'center' ? 'align-center' : align === 'right' ? 'align-right' : ''}"
+    return `<div class="mod-box ${isEmpty ? 'mod-vuoto' : ''} ${placeholder ? 'mod-segnaposto' : ''} ${isFirma ? 'firma' : ''} ${b.multiline ? 'multiline' : ''} ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''} ${align === 'center' ? 'align-center' : align === 'right' ? 'align-right' : ''}"
               data-box-idx="${i}" data-font-pct="${fontSizePct}" data-letter-spacing="${ls}"${b.multiline ? ` data-multiline="1" data-line-height="${b.line_height || 1.2}" data-lines="${nLines}"` : ''}
               style="left:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%;
                      text-align:${align};${topAlign}${lsStyle}${lineGuides}"
@@ -1956,7 +1956,7 @@ function refreshModuloOverlays(slug) {
   // sono 0 finché il layout non è completato dopo l'innerHTML setting).
   requestAnimationFrame(() => {
     layer.querySelectorAll('.mod-box').forEach(boxEl => {
-      if (boxEl.classList.contains('empty') || boxEl.classList.contains('firma')) return;
+      if (boxEl.classList.contains('mod-vuoto') || boxEl.classList.contains('firma')) return;
       _autoFitBoxFont(boxEl);
     });
   });
