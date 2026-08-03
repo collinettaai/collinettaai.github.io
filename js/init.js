@@ -121,7 +121,6 @@ function initMobileDrawer() {
     return null;
   };
   const OPEN_THRESHOLD = 60;       // px di swipe orizzontale per aprire sidebar
-  const MODULO_EDGE = 24;          // in editMode moduli: apri sidebar solo dal bordo sx stretto
   const VERT_TOLERANCE = 40;       // px max verticale tollerato per swipe orizz.
   const PULL_DOWN_THRESHOLD = 90;  // px di pull-down per attivare focus search
   const HORIZ_TOLERANCE = 40;      // px max orizzontale tollerato per pull-down
@@ -152,6 +151,9 @@ function initMobileDrawer() {
                            state.currentParams && state.currentParams.slug &&
                            state.moduliCache && state.moduliCache[state.currentParams.slug] &&
                            state.moduliCache[state.currentParams.slug].editMode;
+    // In editMode moduli, blocco la gesture apri-sidebar SOLO se il touch parte sull'area dei box
+    // del modulo (.mod-page-scroll), dove lo swipe serve a trascinare i box. Fuori da lì funziona.
+    const inModuloBoxArea = !!moduloEditMode && !!(e.target && e.target.closest && e.target.closest('.mod-page-scroll'));
     // Container scrollabile orizzontalmente in cui parte il touch (o null). La decisione di
     // bloccare l'apertura sidebar è rimandata al touchmove, quando conosco la direzione.
     const scrollableX = _horizScrollableAncestor(e.target);
@@ -174,9 +176,9 @@ function initMobileDrawer() {
       x: t.clientX, y: t.clientY,
       sidebarOpen,
       scrollableX,
-      // In editMode moduli lo swipe apri-sidebar resta attivo ma solo da un bordo sinistro STRETTO
-      // (MODULO_EDGE), così non confligge col trascinamento dei box (che avviene più internamente).
-      canOpen: !sidebarOpen && !searchOverlayOpen && !modalOpen && !keyboardOpen && t.clientX <= (moduloEditMode ? MODULO_EDGE : edgeZone),
+      // In editMode moduli lo swipe apri-sidebar resta attivo OVUNQUE tranne che sull'area dei box
+      // del modulo (.mod-page-scroll), dove lo swipe serve a trascinare i box.
+      canOpen: !sidebarOpen && !searchOverlayOpen && !modalOpen && !keyboardOpen && !inModuloBoxArea && t.clientX <= edgeZone,
       canClose: sidebarOpen,
       canPulldown: !sidebarOpen && !modalOpen && !moduloEditMode && !keyboardOpen && (pageAtTop || overlayAtTop),
       searchOverlayOpen,
