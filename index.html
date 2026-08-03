@@ -76,10 +76,10 @@
 <!-- Versione build dell'HTML/CSS: DEVE combaciare con APP_JS_BUILD in js/costanti.js.
      Bumpare ENTRAMBE a ogni deploy che cambia CSS/HTML inline, così un disallineamento di
      cache (index.html vecchio + JS nuovi) viene rilevato e l'app si ricarica una volta sola. -->
-<script>window.__APP_HTML_BUILD='2';</script>
-<script src="js/costanti.js"></script>
-<script src="js/permessi.js"></script>
-<script src="js/richieste.js"></script>
+<script>window.__APP_HTML_BUILD='3';</script>
+<script src="js/costanti.js?v=3"></script>
+<script src="js/permessi.js?v=3"></script>
+<script src="js/richieste.js?v=3"></script>
 <!-- Le seguenti librerie sono caricate lazy on-demand via _ensureLib():
      - jsPDF (~360 KB): solo al click "Scarica PDF" su moduli compilati
      - PDF.js (~370 KB): solo all'apertura del wizard "Nuovo modulo" da PDF
@@ -2060,7 +2060,7 @@ function ensureLetterAI() {
   _letterAiLoading = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     // Path relativo: il file sta accanto a index.html nella repo pubblica (GitHub Pages).
-    script.src = 'letteraai-module.js';
+    script.src = 'letteraai-module.js?v=3';
     script.onload = () => {
       if (window.Lettere) resolve(window.Lettere);
       else reject(new Error('letteraai-module.js caricato ma window.Lettere non definito'));
@@ -5861,7 +5861,7 @@ function renderProcedureCard(p) {
   return renderSchedaCard(p, 'procedura');
 }
 </script>
-<script src="js/reparto.js"></script>
+<script src="js/reparto.js?v=3"></script>
 <script>
 
 function renderProcedureList() {
@@ -5991,18 +5991,18 @@ function renderProcedureByCategoria(cat, subFilter) {
     }`;
 }
 </script>
-<script src="js/schede.js"></script>
-<script src="js/rubrica.js"></script>
-<script src="js/moduli.js"></script>
-<script src="js/calendario.js"></script>
-<script src="js/cestino.js"></script>
-<script src="js/admin.js"></script>
-<script src="js/navtree.js"></script>
-<script src="js/search.js"></script>
-<script src="js/modal.js"></script>
-<script src="js/init.js"></script>
+<script src="js/schede.js?v=3"></script>
+<script src="js/rubrica.js?v=3"></script>
+<script src="js/moduli.js?v=3"></script>
+<script src="js/calendario.js?v=3"></script>
+<script src="js/cestino.js?v=3"></script>
+<script src="js/admin.js?v=3"></script>
+<script src="js/navtree.js?v=3"></script>
+<script src="js/search.js?v=3"></script>
+<script src="js/modal.js?v=3"></script>
+<script src="js/init.js?v=3"></script>
 
-<script src="js/splash.js"></script>
+<script src="js/splash.js?v=3"></script>
 
 
 

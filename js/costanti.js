@@ -4,7 +4,7 @@
 // file JS caricato, quindi il controllo avviene prima di renderizzare la UI.
 // IMPORTANTE: bumpare APP_JS_BUILD INSIEME a window.__APP_HTML_BUILD in index.html a ogni deploy
 // che cambia CSS/HTML inline.
-const APP_JS_BUILD = '2';
+const APP_JS_BUILD = '3';
 (function () {
   try {
     const htmlB = window.__APP_HTML_BUILD;
