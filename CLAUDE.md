@@ -321,6 +321,14 @@ Cerca sempre per marcatore di commento o nome di funzione.
   Verifica sempre dopo.
 - **CSS `.rep-*` duplicato** da `.lt-*`: intenzionale, le `lt-*` esistono solo a
   modulo LetteraAI caricato.
+- **Classi CSS con nomi generici**: esiste una regola globale
+  `.empty{padding:60px 20px;...}` (stato vuoto delle pagine). Qualunque
+  elemento che riceva una classe dal nome generico (`empty`, e simili) rischia
+  di ereditarne gli stili con la stessa specificità ma posizione successiva nel
+  foglio. È il motivo per cui i box dei moduli usano `mod-vuoto`/`mod-segnaposto`
+  e non `empty`/`placeholder` (bug dei "box vuoti giganti a 120px": il padding
+  60px verticale di `.empty` faceva da pavimento all'altezza con border-box).
+  Per nuove feature usare sempre classi prefissate, mai nomi generici.
 - **PAT in localStorage**: problema architetturale noto, in attesa di un backend
   proxy. Non è una svista.
 - **`<script src>` inserito dentro un blocco `<script>` ancora aperto**: il
