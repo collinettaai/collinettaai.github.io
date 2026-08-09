@@ -1084,6 +1084,7 @@ function _renderModuloEditorPanel(slug, det) {
             <button class="mod-seg ${selBox.align === 'right' ? 'active' : ''}" onclick="setBoxAttr('${escapeJs(slug)}',${selIdx},'align','right')">Dx</button>
           </div>
         </div>
+        ${!selBox.multiline ? `
         <div class="mod-field-group">
           <label class="mod-field-label">Dimensione font (% pagina)</label>
           <div class="mod-fontsize-stepper">
@@ -1092,13 +1093,13 @@ function _renderModuloEditorPanel(slug, det) {
                    oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'font_size',Math.min(10,Math.max(0.5,parseFloat(this.value)||2.0)))">
             <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxFontSize('${escapeJs(slug)}',${selIdx},+0.2)" aria-label="Aumenta dimensione font">+</button>
           </div>
-        </div>
+        </div>` : ''}
         ${!isFirma ? `
           <div class="mod-field-group">
             <label class="mod-field-label">Distanza lettere</label>
             <div class="mod-fontsize-stepper">
               <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLetterSpacing('${escapeJs(slug)}',${selIdx},-0.05)" aria-label="Riduci distanza lettere">−</button>
-              <input type="text" inputmode="decimal" class="mod-input mod-fs-input mod-lh-input" value="${selBox.letter_spacing || 0}"
+              <input type="text" inputmode="decimal" class="mod-input mod-fs-input mod-ls-input" value="${selBox.letter_spacing || 0}"
                      oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'letter_spacing',Math.min(3,Math.max(0,parseFloat(this.value)||0)))">
               <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLetterSpacing('${escapeJs(slug)}',${selIdx},+0.05)" aria-label="Aumenta distanza lettere">+</button>
             </div>
@@ -1116,7 +1117,7 @@ function _renderModuloEditorPanel(slug, det) {
               <label class="mod-field-label">Numero di righe</label>
               <div class="mod-fontsize-stepper">
                 <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLines('${escapeJs(slug)}',${selIdx},-1)" aria-label="Meno righe">−</button>
-                <input type="text" inputmode="numeric" class="mod-input mod-fs-input mod-lh-input" value="${selBox.lines || 2}"
+                <input type="text" inputmode="numeric" class="mod-input mod-fs-input mod-lines-input" value="${selBox.lines || 2}"
                        oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'lines',Math.min(30,Math.max(1,Math.round(parseFloat(this.value)||2))))">
                 <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLines('${escapeJs(slug)}',${selIdx},+1)" aria-label="Più righe">+</button>
               </div>
@@ -1130,6 +1131,7 @@ function _renderModuloEditorPanel(slug, det) {
                        oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'line_height',Math.min(3,Math.max(0.8,parseFloat(this.value)||1.2)))">
                 <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLineHeight('${escapeJs(slug)}',${selIdx},+0.1)" aria-label="Aumenta interlinea">+</button>
               </div>
+              <p style="margin:4px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">Nei box a più righe la dimensione del font è automatica: altezza del box ÷ numero di righe ÷ interlinea.</p>
             </div>
           ` : ''}
         ` : ''}
