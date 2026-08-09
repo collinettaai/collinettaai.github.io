@@ -1164,7 +1164,7 @@ function _renderModuloEditorPanel(slug, det) {
       <p style="margin:6px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">Inserendo/rimuovendo pagine i box scorrono con le rispettive pagine; quelli della pagina rimossa vengono eliminati. Operazione salvata subito sul repo.</p>
     </div>
     <div class="mod-edit-section">
-      <div class="mod-edit-section-title">Campi della pagina (${campiDefs.length})</div>
+      <div class="mod-edit-section-title">Campi del documento (${campiDefs.length})</div>
       <div class="mod-campi-list">
         ${campiDefs.length ? campiDefs.map(cd => `
           <div class="mod-campo-item">
