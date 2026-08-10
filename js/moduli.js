@@ -1143,7 +1143,7 @@ function _renderModuloEditorPanel(slug, det) {
               <div class="mod-fontsize-stepper">
                 <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLineHeight('${escapeJs(slug)}',${selIdx},-0.1)" aria-label="Riduci interlinea">−</button>
                 <input type="text" inputmode="decimal" class="mod-input mod-fs-input mod-lh-input" value="${selBox.line_height || 1.2}"
-                       oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'line_height',Math.min(3,Math.max(0.8,parseFloat(this.value)||1.2)))">
+                       oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'line_height',Math.min(3,Math.max(0.5,parseFloat(this.value)||1.2)))">
                 <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLineHeight('${escapeJs(slug)}',${selIdx},+0.1)" aria-label="Aumenta interlinea">+</button>
               </div>
             </div>
@@ -1457,12 +1457,13 @@ function changeBoxLetterSpacing(slug, idx, delta) {
   _refreshModuloEditorPanelLight(slug);
 }
 
-// Incrementa/decrementa l'interlinea del box selezionato (solo box multi-riga). Step 0.1, range 0.8–3.
+// Incrementa/decrementa l'interlinea del box selezionato (solo box multi-riga). Step 0.1, range 0.5–3.
+// Sotto 1 il glifo può superare il passo riga (righe molto compatte, utile su moduli fitti).
 function changeBoxLineHeight(slug, idx, delta) {
   const c = state.moduliCache[slug];
   if (!c || !c.boxesData.box || !c.boxesData.box[idx]) return;
   const cur = c.boxesData.box[idx].line_height || 1.2;
-  const next = Math.round(Math.max(0.8, Math.min(3, cur + delta)) * 10) / 10;
+  const next = Math.round(Math.max(0.5, Math.min(3, cur + delta)) * 10) / 10;
   if (next === cur) return;
   c.boxesData.box[idx].line_height = next;
   const input = document.querySelector('.mod-lh-input');
