@@ -2199,10 +2199,19 @@ function _refreshModuloEditorPanelLight(slug) {
   // via innerHTML li azzererebbe, riportando in cima la lista a ogni selezione.
   const asideScroll = aside.scrollTop;
   const listScrolls = [...aside.querySelectorAll('.mod-box-list')].map(l => l.scrollTop);
+  // Su mobile il pannello sta SOPRA la preview nel flusso della pagina: se il re-render ne
+  // cambia l'altezza (dettagli box che compaiono/spariscono), la preview si sposta e la pagina
+  // "salta". Ancoro visivamente la preview: misuro la sua posizione prima e compenso dopo.
+  const preview = document.getElementById('mod-preview-section');
+  const prevTop = preview ? preview.getBoundingClientRect().top : null;
   // Ri-renderizzo l'editor panel inline (no toolbar/preview, già in DOM)
   aside.innerHTML = _renderModuloEditorPanel(slug, c);
   aside.scrollTop = asideScroll;
   [...aside.querySelectorAll('.mod-box-list')].forEach((l, i) => { if (listScrolls[i] != null) l.scrollTop = listScrolls[i]; });
+  if (preview && prevTop != null) {
+    const delta = preview.getBoundingClientRect().top - prevTop;
+    if (delta) window.scrollBy(0, delta);
+  }
   // Aggiorno anche la toolbar perché lo stato dirty potrebbe essere cambiato
   _refreshModuloToolbar(slug);
 }
