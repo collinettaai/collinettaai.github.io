@@ -1018,11 +1018,26 @@ function toggleModuloEditMode(slug) {
   if (!c) return;
   // Entrare in modalità modifica richiede il permesso; uscirne no
   if (!c.editMode && bloccaSeNonModifica('moduli')) return;
-  // Se sto USCENDO dalla modalità modifica con modifiche non salvate, chiedi conferma
+  // Se sto USCENDO dalla modalità modifica con modifiche non salvate, chiedo conferma
+  // con il popup dell'app (non confirm() nativo), coerente con gli altri dialoghi.
   if (c.editMode && _boxesAreDirty(slug)) {
-    const ok = confirm('Ci sono modifiche non salvate ai box.\n\nUscendo dalla modalità modifica le modifiche restano in questa sessione ma non sul repo.\n\nVuoi uscire comunque? (Per salvare, usa "Salva")');
-    if (!ok) return;
+    showModal({
+      title: 'Modifiche non salvate',
+      subtitle: 'Uscendo dalla modalità modifica, le modifiche ai box restano solo in questa sessione, non sul repo. Per salvarle usa "Salva".',
+      actions: [
+        { label: 'Resta in modifica', variant: 'ghost', onClick: () => closeModal() },
+        { label: 'Esci comunque', onClick: () => { closeModal(); _doToggleModuloEditMode(slug); } }
+      ]
+    });
+    return;
   }
+  _doToggleModuloEditMode(slug);
+}
+
+// Esegue il toggle effettivo della modalità modifica (chiamato direttamente o dopo la conferma).
+function _doToggleModuloEditMode(slug) {
+  const c = state.moduliCache[slug];
+  if (!c) return;
   c.editMode = !c.editMode;
   c.selectedBoxIdx = null;
   _persistModulo(slug);
