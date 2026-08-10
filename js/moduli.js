@@ -1107,7 +1107,6 @@ function _renderModuloEditorPanel(slug, det) {
                    oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'font_size',Math.min(10,Math.max(0.5,parseFloat(this.value)||2.0)))">
             <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxFontSize('${escapeJs(slug)}',${selIdx},+0.2)" aria-label="Aumenta dimensione font">+</button>
           </div>
-          ${selBox.multiline ? `<p style="margin:4px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">Nei box a più righe il font ha un tetto: la dimensione per cui le righe riempiono il box.</p>` : ''}
         </div>
         ${!isFirma ? `
           <div class="mod-field-group">
@@ -1136,7 +1135,7 @@ function _renderModuloEditorPanel(slug, det) {
                        oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'lines',Math.min(30,Math.max(1,Math.round(parseFloat(this.value)||2))))">
                 <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLines('${escapeJs(slug)}',${selIdx},+1)" aria-label="Più righe">+</button>
               </div>
-              <p style="margin:4px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">In modifica vedi le righe come guide: dimensiona il box così che il testo ci stia senza tagliarsi.</p>
+              <p style="margin:4px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">Le righe vanno a passo font × interlinea e il blocco è centrato nel box (guide visibili in modifica).</p>
             </div>
             <div class="mod-field-group">
               <label class="mod-field-label">Interlinea (distanza tra le righe)</label>
@@ -1947,13 +1946,9 @@ function refreshModuloOverlays(slug) {
     const fontSizePct = b.font_size || 2.0;  // % dell'altezza della pagina (universale)
     const isSelected = editMode && i === selIdx;
     const nLines = b.multiline ? Math.max(1, Math.min(30, Math.round(b.lines || 2))) : 0;
-    // Guide righe (solo in modifica, box multi-riga con ≥2 righe): linee orizzontali a ogni 1/N
-    // dell'altezza, così si vede come sono disposte le righe e si dimensiona il box di conseguenza.
-    const lineGuides = (editMode && b.multiline && nLines > 1)
-      ? `background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(100%/${nLines} - 1px),rgba(24,95,165,.35) calc(100%/${nLines} - 1px),rgba(24,95,165,.35) calc(100%/${nLines}));`
-      : '';
-    // N righe fisse: testo allineato in alto (riempie le righe dall'alto, coerente con guide e stampa).
-    const topAlign = (b.multiline && nLines) ? 'align-items:flex-start;' : '';
+    // NB: le guide riga dei box multi-riga NON si disegnano qui: il passo riga è font ×
+    // interlinea (serve il font in px, noto solo dopo il layout), quindi le dipinge
+    // _autoFitBoxFont sul blocco righe (.mod-box-text), centrato nel box dal flex.
     // Distanza lettere (em): spazio extra tra i caratteri, per campi con celle per lettera/numero.
     const ls = parseFloat(b.letter_spacing) || 0;
     const lsStyle = ls > 0 ? `letter-spacing:${ls}em;` : '';
@@ -1963,7 +1958,7 @@ function refreshModuloOverlays(slug) {
     return `<div class="mod-box ${isEmpty ? 'mod-vuoto' : ''} ${placeholder ? 'mod-segnaposto' : ''} ${isFirma ? 'firma' : ''} ${b.multiline ? 'multiline' : ''} ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''} ${align === 'center' ? 'align-center' : align === 'right' ? 'align-right' : ''}"
               data-box-idx="${i}" data-font-pct="${fontSizePct}" data-letter-spacing="${ls}"${b.multiline ? ` data-multiline="1" data-line-height="${b.line_height || 1.2}" data-lines="${nLines}"` : ''}
               style="left:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%;
-                     text-align:${align};${topAlign}${lsStyle}${lineGuides}"
+                     text-align:${align};${lsStyle}"
               title="${escapeHtml(b.campo || b.label || '')}"><span class="mod-box-text">${escapeHtml(display)}</span>${handles}</div>`;
   }).join('');
 
@@ -2026,10 +2021,23 @@ function _autoFitBoxFont(boxEl) {
     const buildFont = s => `${style} ${weight} ${s}px ${fam}`;
     const { size, lines } = _fitMultilineFont(ctx, text, availW, availH, baseSize, MIN_SIZE, lineHeight, buildFont, targetLines, ls);
     boxEl.style.fontSize = size + 'px';
-    // Con N righe fisse il passo riga in px resta quello delle guide (availH/N) anche quando
-    // il font è sotto il tetto: così il testo cade comunque sulle righe del modulo.
-    boxEl.style.lineHeight = targetLines ? (availH / targetLines) + 'px' : String(lineHeight);
+    boxEl.style.lineHeight = String(lineHeight);
     textEl.textContent = lines.join('\n');
+    if (targetLines) {
+      // N righe fisse: blocco di N righe a passo font × interlinea, centrato verticalmente nel
+      // box (il flex del .mod-box centra lo span, alto quanto il blocco). Il testo parte dalla
+      // prima riga del blocco; l'eccedenza oltre le N righe viene clippata.
+      const advance = size * lineHeight;
+      textEl.style.height = (targetLines * advance) + 'px';
+      // Guide riga (solo in modifica, ≥2 righe): una linea sul fondo di ogni riga del blocco.
+      const editable = boxEl.classList.contains('editable');
+      textEl.style.backgroundImage = (editable && targetLines > 1)
+        ? `repeating-linear-gradient(to bottom,transparent 0,transparent ${advance - 1}px,rgba(24,95,165,.35) ${advance - 1}px,rgba(24,95,165,.35) ${advance}px)`
+        : '';
+    } else {
+      textEl.style.height = '';
+      textEl.style.backgroundImage = '';
+    }
     return;
   }
   ctx.font = `${style} ${weight} ${baseSize}px ${fam}`;
@@ -2078,13 +2086,10 @@ function _fitMultilineFont(ctx, text, availW, availH, baseSize, minSize, lineHei
   ls = ls || 0;  // distanza lettere in em
   const setLS = s => { try { ctx.letterSpacing = (ls * s) + 'px'; } catch (e) {} };
   if (targetLines && targetLines > 0) {
-    // Passo riga fisso = altezza box / N (combacia con le guide → il testo cade sempre sulle
-    // righe prestampate del modulo). Il font parte da font_size (baseSize) ma è limitato dal
-    // passo: al massimo le N righe riempiono il box. Sotto il tetto resta regolabile.
-    const slot = availH / targetLines;
-    let size = Math.min(baseSize, slot / (lineHeight || 1.2));
+    // N righe fisse: il font è quello scelto dall'utente (baseSize = font_size), il passo riga
+    // è font × interlinea. Il blocco delle N righe viene centrato nel box dal chiamante.
+    let size = Math.max(minSize, baseSize);
     if (!(size > 0)) size = minSize;
-    size = Math.max(minSize, size);
     ctx.font = buildFont(size);
     setLS(size);
     const lines = _wrapBoxLines(ctx, text, availW);
@@ -2509,13 +2514,14 @@ async function _renderModuloPaginaSuCanvas(slug, pageIndex /* 1-based */) {
       const { size, lines } = _fitMultilineFont(ctx, value, availW, availH, baseSize, MIN_SIZE_PX, lineHeight, buildFont, targetLines, ls);
       ctx.font = buildFont(size);
       try { ctx.letterSpacing = (ls * size) + 'px'; } catch (e) {}
-      // Passo riga: con N righe fisse è quello delle guide (availH/N), identico all'editor;
-      // il testo è centrato nel passo (come il line-height CSS) quando il font è sotto il tetto.
-      const advance = targetLines ? (availH / targetLines) : (size * lineHeight);
-      const totalH = lines.length * advance;
-      // N righe fisse → allineo in alto (il testo riempie le righe dall'alto). Auto-fit → centrato.
-      let startY = targetLines ? y + (advance - size * lineHeight) / 2 : y + (availH - totalH) / 2;
-      if (startY < y) startY = y;  // blocco di testo più alto del box → parti dal bordo (verrà clippato)
+      // Passo riga = font × interlinea (identico all'editor). Con N righe fisse centro il
+      // BLOCCO di N righe nel box e il testo parte dalla prima riga; senza N centro le righe
+      // effettive. L'offset (advance - size)/2 replica la centratura del glifo nella riga
+      // che fa il line-height CSS (half-leading), così editor e stampa coincidono.
+      const advance = size * lineHeight;
+      const blockH = (targetLines || lines.length) * advance;
+      let startY = y + (availH - blockH) / 2 + (advance - size) / 2;
+      if (startY < y) startY = y;  // blocco più alto del box → parti dal bordo (verrà clippato)
       for (let li = 0; li < lines.length; li++) {
         ctx.fillText(lines[li], drawX, startY + li * advance);
       }
