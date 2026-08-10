@@ -1084,7 +1084,6 @@ function _renderModuloEditorPanel(slug, det) {
             <button class="mod-seg ${selBox.align === 'right' ? 'active' : ''}" onclick="setBoxAttr('${escapeJs(slug)}',${selIdx},'align','right')">Dx</button>
           </div>
         </div>
-        ${!selBox.multiline ? `
         <div class="mod-field-group">
           <label class="mod-field-label">Dimensione font (% pagina)</label>
           <div class="mod-fontsize-stepper">
@@ -1093,7 +1092,8 @@ function _renderModuloEditorPanel(slug, det) {
                    oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'font_size',Math.min(10,Math.max(0.5,parseFloat(this.value)||2.0)))">
             <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxFontSize('${escapeJs(slug)}',${selIdx},+0.2)" aria-label="Aumenta dimensione font">+</button>
           </div>
-        </div>` : ''}
+          ${selBox.multiline ? `<p style="margin:4px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">Nei box a più righe il font ha un tetto: la dimensione per cui le righe riempiono il box.</p>` : ''}
+        </div>
         ${!isFirma ? `
           <div class="mod-field-group">
             <label class="mod-field-label">Distanza lettere</label>
@@ -1131,7 +1131,6 @@ function _renderModuloEditorPanel(slug, det) {
                        oninput="setBoxAttr('${escapeJs(slug)}',${selIdx},'line_height',Math.min(3,Math.max(0.8,parseFloat(this.value)||1.2)))">
                 <button type="button" class="btn ghost mod-fs-btn" onclick="changeBoxLineHeight('${escapeJs(slug)}',${selIdx},+0.1)" aria-label="Aumenta interlinea">+</button>
               </div>
-              <p style="margin:4px 0 0;font-size:11px;color:var(--ink-muted);font-style:italic;">Nei box a più righe la dimensione del font è automatica: altezza del box ÷ numero di righe ÷ interlinea.</p>
             </div>
           ` : ''}
         ` : ''}
@@ -2009,7 +2008,9 @@ function _autoFitBoxFont(boxEl) {
     const buildFont = s => `${style} ${weight} ${s}px ${fam}`;
     const { size, lines } = _fitMultilineFont(ctx, text, availW, availH, baseSize, MIN_SIZE, lineHeight, buildFont, targetLines, ls);
     boxEl.style.fontSize = size + 'px';
-    boxEl.style.lineHeight = String(lineHeight);
+    // Con N righe fisse il passo riga in px resta quello delle guide (availH/N) anche quando
+    // il font è sotto il tetto: così il testo cade comunque sulle righe del modulo.
+    boxEl.style.lineHeight = targetLines ? (availH / targetLines) + 'px' : String(lineHeight);
     textEl.textContent = lines.join('\n');
     return;
   }
@@ -2059,7 +2060,11 @@ function _fitMultilineFont(ctx, text, availW, availH, baseSize, minSize, lineHei
   ls = ls || 0;  // distanza lettere in em
   const setLS = s => { try { ctx.letterSpacing = (ls * s) + 'px'; } catch (e) {} };
   if (targetLines && targetLines > 0) {
-    let size = availH / (targetLines * (lineHeight || 1.2));
+    // Passo riga fisso = altezza box / N (combacia con le guide → il testo cade sempre sulle
+    // righe prestampate del modulo). Il font parte da font_size (baseSize) ma è limitato dal
+    // passo: al massimo le N righe riempiono il box. Sotto il tetto resta regolabile.
+    const slot = availH / targetLines;
+    let size = Math.min(baseSize, slot / (lineHeight || 1.2));
     if (!(size > 0)) size = minSize;
     size = Math.max(minSize, size);
     ctx.font = buildFont(size);
@@ -2190,8 +2195,14 @@ function _refreshModuloEditorPanelLight(slug) {
   if (!c || !c.editMode) return;
   const aside = document.getElementById('mod-form-aside');
   if (!aside) return;
+  // Preservo lo scroll del pannello e delle liste interne (box e campi): il re-render
+  // via innerHTML li azzererebbe, riportando in cima la lista a ogni selezione.
+  const asideScroll = aside.scrollTop;
+  const listScrolls = [...aside.querySelectorAll('.mod-box-list')].map(l => l.scrollTop);
   // Ri-renderizzo l'editor panel inline (no toolbar/preview, già in DOM)
   aside.innerHTML = _renderModuloEditorPanel(slug, c);
+  aside.scrollTop = asideScroll;
+  [...aside.querySelectorAll('.mod-box-list')].forEach((l, i) => { if (listScrolls[i] != null) l.scrollTop = listScrolls[i]; });
   // Aggiorno anche la toolbar perché lo stato dirty potrebbe essere cambiato
   _refreshModuloToolbar(slug);
 }
@@ -2471,12 +2482,15 @@ async function _renderModuloPaginaSuCanvas(slug, pageIndex /* 1-based */) {
       const { size, lines } = _fitMultilineFont(ctx, value, availW, availH, baseSize, MIN_SIZE_PX, lineHeight, buildFont, targetLines, ls);
       ctx.font = buildFont(size);
       try { ctx.letterSpacing = (ls * size) + 'px'; } catch (e) {}
-      const totalH = lines.length * size * lineHeight;
+      // Passo riga: con N righe fisse è quello delle guide (availH/N), identico all'editor;
+      // il testo è centrato nel passo (come il line-height CSS) quando il font è sotto il tetto.
+      const advance = targetLines ? (availH / targetLines) : (size * lineHeight);
+      const totalH = lines.length * advance;
       // N righe fisse → allineo in alto (il testo riempie le righe dall'alto). Auto-fit → centrato.
-      let startY = targetLines ? y : y + (availH - totalH) / 2;
+      let startY = targetLines ? y + (advance - size * lineHeight) / 2 : y + (availH - totalH) / 2;
       if (startY < y) startY = y;  // blocco di testo più alto del box → parti dal bordo (verrà clippato)
       for (let li = 0; li < lines.length; li++) {
-        ctx.fillText(lines[li], drawX, startY + li * size * lineHeight);
+        ctx.fillText(lines[li], drawX, startY + li * advance);
       }
     } else {
       const ls = b.letter_spacing || 0;  // distanza lettere in em
