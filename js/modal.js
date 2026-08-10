@@ -45,6 +45,24 @@ function showModal({ title, subtitle, body, actions }) {
   }
 }
 
+// Conferma promise-based in stile app: sostituisce il confirm() nativo.
+// Uso: const ok = await confirmModal({ title, subtitle, body, okLabel, cancelLabel, danger }).
+// Risolve true alla conferma, false all'annulla. Se l'utente chiude il popup in altro modo
+// (backdrop, gesto indietro) la promise resta pendente: equivale a non proseguire, come annulla.
+function confirmModal({ title, subtitle, body, okLabel = 'Conferma', cancelLabel = 'Annulla', danger = false }) {
+  return new Promise(resolve => {
+    let done = false;
+    const finish = val => { if (!done) { done = true; closeModal(); resolve(val); } };
+    showModal({
+      title, subtitle, body,
+      actions: [
+        { label: cancelLabel, variant: 'ghost', onClick: () => finish(false) },
+        { label: okLabel, variant: danger ? 'danger' : undefined, onClick: () => finish(true) }
+      ]
+    });
+  });
+}
+
 function closeModal() {
   const hadEntry = _modalHasHistoryEntry;
   _clearModalDom();

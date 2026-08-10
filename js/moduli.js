@@ -1282,17 +1282,19 @@ function _confermaCampoModal(slug, campoId) {
   _refreshModuloEditorPanelLight(slug);
 }
 
-function deleteModuloCampo(slug, campoId) {
+async function deleteModuloCampo(slug, campoId) {
   const c = state.moduliCache[slug];
   if (!c || !c.boxesData) return;
   const campi = c.boxesData.campi_richiesti || [];
   const campo = campi.find(x => x.id === campoId);
   if (!campo) return;
   const boxesUsing = (c.boxesData.box || []).filter(b => b.campo === campoId);
-  const msg = boxesUsing.length
-    ? `Eliminare il campo "${campo.label}"?\n\nÈ associato a ${boxesUsing.length} box: verranno scollegati (i box restano ma senza campo).`
-    : `Eliminare il campo "${campo.label}"?`;
-  if (!confirm(msg)) return;
+  const ok = await confirmModal({
+    title: `Eliminare il campo "${escapeHtml(campo.label)}"?`,
+    subtitle: boxesUsing.length ? `È associato a ${boxesUsing.length} box: verranno scollegati (i box restano ma senza campo).` : '',
+    okLabel: 'Elimina', danger: true
+  });
+  if (!ok) return;
   c.boxesData.campi_richiesti = campi.filter(x => x.id !== campoId);
   // Scollega i box che usavano il campo eliminato
   (c.boxesData.box || []).forEach(b => { if (b.campo === campoId) { b.campo = ''; delete b.formato; } });
@@ -1387,10 +1389,10 @@ function duplicateModuloBox(slug, idx) {
 }
 
 // Elimina un box (con conferma)
-function deleteModuloBox(slug, idx) {
+async function deleteModuloBox(slug, idx) {
   const c = state.moduliCache[slug];
   if (!c || !c.boxesData.box) return;
-  if (!confirm('Eliminare questo box?')) return;
+  if (!(await confirmModal({ title: 'Eliminare questo box?', okLabel: 'Elimina', danger: true }))) return;
   c.boxesData.box.splice(idx, 1);
   c.selectedBoxIdx = null;
   _persistModulo(slug);
@@ -1775,8 +1777,8 @@ function eliminaPazienteSalvato(key, slug, fieldId) {
   if (c) renderModuloCompilatore(slug, c);
 }
 
-function resetModuloFormValues(slug) {
-  if (!confirm('Resettare tutti i campi compilati?')) return;
+async function resetModuloFormValues(slug) {
+  if (!(await confirmModal({ title: 'Resettare tutti i campi compilati?', subtitle: 'I valori inseriti nel form verranno azzerati.', okLabel: 'Resetta' }))) return;
   const c = state.moduliCache[slug];
   if (!c) return;
   c.formValues = {};
@@ -2629,9 +2631,20 @@ function closeModuloDownloadMenu() {
   document.querySelectorAll('.mod-dropdown-menu.open').forEach(m => m.classList.remove('open'));
 }
 
+// Popup di conferma per campi obbligatori mancanti (condiviso da download/stampa/condivisione).
+// `domanda` è la frase finale, es. "Generare comunque il modulo?".
+function _confirmCampiMancanti(missing, domanda) {
+  return confirmModal({
+    title: 'Campi obbligatori non compilati',
+    body: `<ul style="margin:0;padding-left:18px;">${missing.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>
+           <p style="margin:10px 0 0;">${escapeHtml(domanda)}</p>`,
+    okLabel: 'Prosegui comunque'
+  });
+}
+
 async function downloadModuloPng(slug) {
   const missing = _validateModuloRequired(slug);
-  if (missing.length && !confirm('Campi obbligatori non compilati:\n• ' + missing.join('\n• ') + '\n\nGenerare comunque il modulo?')) return;
+  if (missing.length && !(await _confirmCampiMancanti(missing, 'Generare comunque il modulo?'))) return;
   try {
     const canvases = await _renderModuloTutteLePagine(slug);
     const baseName = _moduloOutputFileName(slug, 'png').replace(/\.png$/, '');
@@ -2650,7 +2663,7 @@ async function downloadModuloPng(slug) {
 // Genera PDF multipagina e scarica.
 async function downloadModuloPdf(slug) {
   const missing = _validateModuloRequired(slug);
-  if (missing.length && !confirm('Campi obbligatori non compilati:\n• ' + missing.join('\n• ') + '\n\nGenerare comunque il modulo?')) return;
+  if (missing.length && !(await _confirmCampiMancanti(missing, 'Generare comunque il modulo?'))) return;
   try {
     await _ensureLib('jspdf');
     const canvases = await _renderModuloTutteLePagine(slug);
@@ -2694,7 +2707,7 @@ async function _canvasesToPdfBlob(canvases) {
 // Stesso approccio di stampaModuloViewer ma con le immagini canvas riempite invece delle PNG vuote.
 async function stampaModuloCompilato(slug) {
   const missing = _validateModuloRequired(slug);
-  if (missing.length && !confirm('Campi obbligatori non compilati:\n• ' + missing.join('\n• ') + '\n\nStampare comunque il modulo?')) return;
+  if (missing.length && !(await _confirmCampiMancanti(missing, 'Stampare comunque il modulo?'))) return;
   try {
     const canvases = await _renderModuloTutteLePagine(slug);
     if (!canvases.length) return toast('Nessuna pagina da stampare', 'error');
@@ -2725,7 +2738,7 @@ function _triggerDownload(blob, filename) {
 // Web Share API: condivide il modulo come file (PDF preferito, PNG fallback) via WhatsApp/email/etc.
 async function shareModulo(slug) {
   const missing = _validateModuloRequired(slug);
-  if (missing.length && !confirm('Campi obbligatori non compilati:\n• ' + missing.join('\n• ') + '\n\nCondividere comunque?')) return;
+  if (missing.length && !(await _confirmCampiMancanti(missing, 'Condividere comunque?'))) return;
   if (!navigator.share) {
     return toast('Condivisione file non supportata su questo browser. Usa "Scarica PDF" o "Scarica PNG".', 'warning', 5000);
   }
@@ -2874,11 +2887,11 @@ async function _doSalvaModuloBoxes(slug) {
 }
 
 // Scarta le modifiche locali e ricarica i box dal pristine
-function scartaModuloBoxesModifiche(slug) {
+async function scartaModuloBoxesModifiche(slug) {
   const c = state.moduliCache[slug];
   if (!c || !c.pristineBoxes) return;
   if (!_boxesAreDirty(slug)) return toast('Nessuna modifica da scartare', 'info');
-  if (!confirm('Scartare tutte le modifiche locali (box e campi)?\n\nLe modifiche non salvate andranno perse.')) return;
+  if (!(await confirmModal({ title: 'Scartare le modifiche?', subtitle: 'Le modifiche locali non salvate (box e campi) andranno perse.', okLabel: 'Scarta', danger: true }))) return;
   c.boxesData.box = JSON.parse(JSON.stringify(c.pristineBoxes));
   if (c.pristineCampi != null) c.boxesData.campi_richiesti = JSON.parse(JSON.stringify(c.pristineCampi));
   c.selectedBoxIdx = null;
